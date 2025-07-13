@@ -1,0 +1,14 @@
+# Dependencies
+/node_modules
+
+# Build artifacts
+/dist
+*.bundle.js
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
