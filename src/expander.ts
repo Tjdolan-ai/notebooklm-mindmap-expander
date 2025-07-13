@@ -70,18 +70,22 @@ function tryToolbarCollapse(): boolean {
 }
 
 function walkAndToggle(labelPrefix: string): void {
-  const seen = new Set<string>();
-  let didWork = true;
-  while (didWork) {
-    didWork = false;
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`button[aria-label^="${labelPrefix}"][role="button"]`));
+  const seen = new Set<HTMLElement>();
+
+  function walk(node: HTMLElement) {
+    const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>(`button[aria-label^="${labelPrefix}"][role="button"]`));
     for (const btn of buttons) {
-      const id = btn.id || btn.getAttribute("data-node-id") || Math.random().toString(36);
-      if (seen.has(id)) continue;
+      if (seen.has(btn)) continue;
       btn.click();
-      seen.add(id);
-      didWork = true;
+      seen.add(btn);
+      walk(node); // Re-query the same node to find new buttons
+      return; // Only process one button per walk to avoid stale collections
     }
+  }
+
+  const container = document.querySelector('div[class^="MindMapViewer"]');
+  if (container) {
+    walk(container as HTMLElement);
   }
 }
 
@@ -103,20 +107,97 @@ function injectToggle(): void {
     zIndex: "10000",
     fontSize: "14px",
     userSelect: "none",
-    cursor: "pointer"
+    cursor: "pointer",
+    display: "flex",
+    gap: "8px",
   } as CSSStyleDeclaration);
 
-  wrapper.textContent = "🌳";
-  wrapper.title = "Expand / Collapse";
-
+  const expander = document.createElement("div");
+  expander.textContent = "🌳";
+  expander.title = "Expand / Collapse";
   let expanded = false;
-  wrapper.addEventListener("click", () => {
+  expander.addEventListener("click", () => {
     expanded ? collapseAll() : expandAll();
     expanded = !expanded;
-    wrapper.textContent = expanded ? "🌲" : "🌳";
+    expander.textContent = expanded ? "🌲" : "🌳";
   });
 
+  const exporter = document.createElement("div");
+  exporter.textContent = "📋";
+  exporter.title = "Export as Text";
+  exporter.addEventListener("click", () => {
+    const outline = generateOutline();
+    showOutlineModal(outline);
+  });
+
+  wrapper.appendChild(expander);
+  wrapper.appendChild(exporter);
   lastContainer!.appendChild(wrapper);
+}
+
+function generateOutline(): string {
+  const container = document.querySelector('div[class^="MindMapViewer"]');
+  if (!container) return "Mind map not found.";
+
+  let outline = "";
+  function walk(node: Element, depth: number) {
+    const label = node.querySelector('.node-label-text')?.textContent?.trim();
+    if (label) {
+      outline += `${"  ".repeat(depth)}- ${label}\n`;
+    }
+    const children = Array.from(node.querySelectorAll(':scope > .node-children > .node-child > .node'));
+    for (const child of children) {
+      walk(child, depth + 1);
+    }
+  }
+
+  const root = container.querySelector('.node');
+  if (root) {
+    walk(root, 0);
+  }
+
+  return outline;
+}
+
+function showOutlineModal(outline: string): void {
+  const modal = document.createElement("div");
+  modal.id = "nlm-exporter-modal";
+  Object.assign(modal.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: "10001",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  } as CSSStyleDeclaration);
+
+  const modalContent = document.createElement("div");
+  Object.assign(modalContent.style, {
+    backgroundColor: "#fff",
+    padding: "2rem",
+    borderRadius: "8px",
+    width: "600px",
+    maxHeight: "80vh",
+    overflowY: "auto",
+  } as CSSStyleDeclaration);
+
+  const pre = document.createElement("pre");
+  pre.textContent = outline;
+
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "Close";
+  closeButton.addEventListener("click", () => {
+    modal.remove();
+  });
+
+  modalContent.appendChild(pre);
+  modalContent.appendChild(closeButton);
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
 }
 
 /**
