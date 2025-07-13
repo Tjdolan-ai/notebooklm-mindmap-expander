@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "NotebookLM Mind Map Expander",
+  "version": "0.1.0",
+  "description": "Injects buttons to expand or collapse all nodes in a NotebookLM mind map.",
+  "icons": {
+    "128": "icon128.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://notebooklm.google.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://notebooklm.google.com/*"],
+      "js": ["dist/expander.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "expand": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E"
+      },
+      "description": "Expand all branches"
+    },
+    "collapse": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C"
+      },
+      "description": "Collapse all branches"
+    }
+  },
+  "action": {
+    "default_title": "Mind Map Expander"
+  }
+}

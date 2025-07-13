@@ -1,0 +1,491 @@
+﻿Technical Specification & Instructive Prompt for an AI Agent: NotebookLM Mind Map Expander Extension
+
+
+
+
+Preamble: High-Level Directive for the AI Agent
+
+
+Objective: You are to construct a Google Chrome browser extension using Manifest V3.
+Target Application: Google NotebookLM, specifically at the URL https://notebooklm.google.com/.
+Core Functionality: The extension will inject two buttons, "Expand All" and "Collapse All," into the Google NotebookLM mind map view. These buttons will programmatically expand or collapse every node in the currently visible mind map, providing a significant quality-of-life improvement for users navigating complex, multi-level diagrams.1
+Key Technologies: The implementation must use a content_script to interact with the page's Document Object Model (DOM). Crucially, it must employ a MutationObserver to handle the asynchronous loading of the mind map interface, ensuring the script only executes after the target elements are present in the DOM.3 All JavaScript code must be modern, clean, and encapsulated within an Immediately Invoked Function Expression (IIFE) to prevent conflicts with the host application's scripts.5
+
+
+Section 1: Extension Scaffolding and Manifest Configuration
+
+
+This section provides the foundational blueprint for the extension. It details the required file structure and the complete, annotated configuration for the manifest.json file. This manifest is the central configuration file that dictates the extension's permissions, capabilities, and entry points to the Chrome browser.7
+
+
+File Structure
+
+
+A minimal and organized file structure is required for this extension. Create a root directory for the project. Inside this directory, create the following files. This structure contains only the essential components for the specified functionality.9
+* manifest.json: The core configuration file for the Chrome extension.
+* content.js: The JavaScript file that will be injected into the NotebookLM webpage to perform all DOM manipulation.
+* icon128.png: A 128x128 pixel icon for the extension. A placeholder can be used during development; the absence of a physical icon file will not prevent the extension from loading and functioning.
+
+
+Manifest V3 Configuration (manifest.json)
+
+
+The manifest.json file serves as the extension's identity card, providing the browser with essential metadata and defining its operational parameters. The configuration below is carefully crafted to adhere to the principle of least privilege, requesting only the permissions absolutely necessary for the extension to function.8 This approach enhances security and builds user trust.
+The following is the complete and final code for the manifest.json file.
+
+
+JSON
+
+
+
+
+{
+ "manifest_version": 3,
+ "name": "NotebookLM Mind Map Expander",
+ "version": "1.0",
+ "description": "Adds 'Expand All' and 'Collapse All' buttons to the NotebookLM mind map view for enhanced navigation.",
+ "icons": {
+   "128": "icon128.png"
+ },
+ "content_scripts": [
+   {
+     "matches": ["https://notebooklm.google.com/*"],
+     "js": ["content.js"],
+     "run_at": "document_idle"
+   }
+ ],
+ "action": {
+   "default_icon": {
+     "128": "icon128.png"
+   },
+   "default_title": "NotebookLM Mind Map Expander"
+ }
+}
+
+
+
+Table 1: manifest.json Configuration Details
+
+
+The table below breaks down each key in the manifest.json file, providing the required value and the rationale behind its inclusion, connecting it to established best practices for Chrome extension development. This structured format ensures clarity and precision in the extension's definition.
+
+
+Key
+	Value (JSON)
+	Rationale / Connection to Research
+	manifest_version
+	3
+	Mandates the use of Manifest Version 3. Manifest V2 is deprecated, and V3 offers significant improvements in security, privacy, and performance by moving logic to service workers and restricting certain APIs.5
+	name
+	"NotebookLM Mind Map Expander"
+	A clear, descriptive name that identifies the extension's purpose to the user in the chrome://extensions management page and the Chrome Web Store.7
+	version
+	"1.0"
+	The initial version number of the extension. This should be incremented for subsequent updates.
+	description
+	"Adds 'Expand All' and 'Collapse All' buttons to the NotebookLM mind map view for enhanced navigation."
+	A concise summary of the extension's functionality. This text is displayed to users and is crucial for conveying the extension's value proposition.8
+	icons
+	{"128": "icon128.png"}
+	Defines the icon for the extension, which is displayed in the extensions management page and other parts of the Chrome UI. A 128x128 pixel icon is standard.10
+	content_scripts
+	[{"matches": ["https://notebooklm.google.com/*"], "js": ["content.js"], "run_at": "document_idle"}]
+	This is the operational core of the extension. It instructs Chrome to inject the content.js script into pages matching the https://notebooklm.google.com/* pattern. This adheres to the principle of least privilege by targeting only the required site, avoiding overly broad permissions like <all_urls>.12 The script is set to run at
+	document_idle, which is the default and safest time, ensuring the initial DOM is loaded before our script begins its work.13
+	action
+	{"default_icon": {"128": "icon128.png"}, "default_title": "NotebookLM Mind Map Expander"}
+	Defines the extension's icon in the Chrome toolbar. While this extension does not have a popup action, defining a default action provides a visible presence in the browser, improving user awareness and access to extension management.7
+	
+
+Section 2: Content Script Initialization and Dynamic DOM Observation
+
+
+The content.js script is the engine of this extension. It runs within the context of the NotebookLM webpage and is responsible for all interactions with the DOM.6 Because NotebookLM is a modern, dynamic web application, the mind map feature is not present on the initial page load. It is loaded asynchronously when the user initiates the action.17 Therefore, the script must be designed to wait for the mind map to appear before attempting to modify it. This is achieved using the
+MutationObserver API, a powerful and efficient tool for reacting to DOM changes.3
+
+
+Code Encapsulation
+
+
+To prevent any potential conflicts with the NotebookLM application's own JavaScript, the entire content.js script must be wrapped in an Immediately Invoked Function Expression (IIFE). This creates a private scope for all variables and functions, adhering to a critical best practice in content script development. While Chrome's content scripts operate in an "isolated world" by default, an IIFE provides an explicit and robust layer of encapsulation, ensuring that no variables leak into the global scope of the host page.5
+
+
+JavaScript
+
+
+
+
+(() => {
+ // All extension code will reside within this function.
+})();
+
+
+
+The MutationObserver Core for Dynamic Content
+
+
+The central challenge is to execute code only when the mind map is visible. A MutationObserver is the ideal solution, as it provides an efficient, event-driven mechanism to watch for the appearance of specific elements without resorting to inefficient polling methods like setInterval.4
+A generic, promise-based waitForElement utility function will be implemented. This function will accept a CSS selector and return a promise that resolves with the corresponding DOM element once it is added to the DOM. This makes the asynchronous code clean and manageable.
+The observer will be configured to monitor document.documentElement for changes. This broad scope is necessary because the mind map container could be appended as a direct child of the body or nested deep within other framework-generated elements. The observer will specifically watch for childList and subtree mutations to detect the addition of new nodes anywhere in the document.20 Once the target element is found, the observer for that specific task is disconnected using
+observer.disconnect() to conserve resources.3
+
+
+Main Execution Flow and Lifecycle Management
+
+
+A simple waitForElement function that runs once is insufficient for a robust user experience. The user can generate a mind map, close it, and then generate another one within the same session.18 The extension must handle this lifecycle gracefully, re-injecting the buttons each time a new mind map appears.
+To achieve this, a persistent MutationObserver will be established. This primary observer will not disconnect. Instead, it will continuously monitor the DOM for the appearance of the mind map's main container. When a new mind map container is detected, it will trigger the initialize function, which handles the UI injection and event binding. This approach transforms the script from a one-time execution into a lifecycle manager for the extension's UI components, ensuring functionality is always present when needed.
+The script will first define a stable selector for the mind map's container. Based on analysis of the NotebookLM interface, a likely candidate is an element within the "Studio" panel that specifically houses the mind map visualization.22 A hypothetical but plausible selector would be
+div.mind-map-view-container. The main observer will watch for nodes matching this selector.
+
+
+Section 3: User Interface Injection and Styling
+
+
+This section details the process of creating the "Expand All" and "Collapse All" buttons and seamlessly integrating them into the NotebookLM interface. The goal is to make the injected elements feel like a native part of the application, enhancing usability without being intrusive.
+
+
+Finding an Anchor Point for Injection
+
+
+The most logical and user-friendly location for the new buttons is alongside the existing controls for the mind map, such as the zoom and download buttons.18 These controls are typically located in a dedicated toolbar. The script must first identify a stable CSS selector for this toolbar element. A hypothetical selector might be
+div.mind-map-toolbar. The waitForElement function will be used to ensure this toolbar is present in the DOM before any attempt is made to append the new buttons.
+
+
+Button Creation and Native Styling
+
+
+The buttons will be created programmatically using document.createElement('button'). This method is more secure and reliable than manipulating innerHTML, as it avoids the risk of script injection vulnerabilities and provides a direct reference to the DOM node for event binding.5
+Each button will be configured with essential attributes:
+* id: A unique identifier (e.g., expandAllBtn, collapseAllBtn) for easy selection and to prevent duplicate injections.
+* textContent: The visible label for the user (e.g., "Expand All").
+* title: A tooltip that appears on hover, providing additional context (e.g., "Expand all nodes in the mind map").
+To ensure a native look and feel, the buttons must be styled to match the existing UI elements in the NotebookLM toolbar. The script should be instructed to apply styles for properties such as background-color, color, font-size, border, border-radius, padding, margin, and cursor. This can be achieved by adding the same CSS classes as the existing buttons or by applying inline styles directly.
+
+
+DOM Insertion and Idempotent Logic
+
+
+Once the anchor element (the toolbar) is located and the buttons are created and styled, they will be appended to the toolbar using anchorElement.appendChild(button).
+A critical consideration for scripts that react to DOM mutations is idempotency. The MutationObserver might trigger multiple times in quick succession during complex UI updates by the host application. A naive injection script could add duplicate sets of buttons. To prevent this, the UI injection logic must be idempotent, meaning that running it multiple times produces the same result as running it once. This is achieved by wrapping the button creation and appending logic in a conditional check: if (!document.getElementById('expandAllBtn')) {... }. This simple check ensures that the buttons are only ever added once per mind map instance, resulting in a clean, bug-free user experience.
+
+
+Section 4: Core Logic: Node Traversal and Interaction
+
+
+This section describes the functional core of the extension: the logic for identifying, traversing, and interacting with the mind map nodes to perform the expand and collapse operations.
+
+
+Heuristic-Based Node Identification
+
+
+Public documentation on the specific HTML structure or CSS classes of NotebookLM's mind map is unavailable.18 Relying on potentially volatile class names like
+.mind-map-node would make the extension brittle and prone to breaking with any front-end update from Google.
+A more robust and future-proof strategy is to use a heuristic based on common web accessibility patterns. Interactive elements that can be expanded and collapsed, such as those in a tree view or mind map, frequently use the aria-expanded attribute to communicate their state to assistive technologies. This attribute is a much more stable identifier than a presentational CSS class.
+The primary strategy for identifying nodes will be to query for elements within the mind map container that possess an aria-expanded attribute. These elements, likely <button> or <div> tags with a role="button", are the interactive toggles for each node.
+Example selector: div.mind-map-view-container [aria-expanded]
+
+
+Recursive Expansion and Collapse Logic
+
+
+A simple, single-pass operation is insufficient for a hierarchical mind map. Expanding a parent node may reveal a new set of collapsed child nodes that were not present in the DOM during the initial query.26 A true "Expand All" function must account for this dynamic loading of sub-trees.
+This requires an iterative or recursive approach. The expandAllNodes function will be implemented as a while loop. In each iteration, it will query for all collapsed nodes ([aria-expanded="false"]), click them, and then pause briefly to allow the NotebookLM application to re-render the DOM and display the new sub-nodes. The loop continues until no more collapsed nodes can be found, ensuring the entire tree is progressively unfurled.
+Conversely, the collapseAllNodes function will target all expanded nodes ([aria-expanded="true"]). A crucial refinement is to prevent the collapse of the root node(s), as this is often not a permitted or desirable action in a mind map interface. The script will identify the root node (e.g., by its depth in the tree or a unique class) and exclude it from the list of nodes to be collapsed.
+The click action itself will be performed using a robust method. Instead of a simple .click(), which can be unreliable in modern JavaScript frameworks, the script will use node.dispatchEvent(new MouseEvent('click', { bubbles: true })). This programmatically dispatches a new mouse event, which is more likely to be correctly intercepted by the application's event listeners.28
+
+
+Event Binding
+
+
+Once the "Expand All" and "Collapse All" buttons have been successfully injected into the DOM, the final step is to bind their click events to the corresponding functions. This is achieved with a standard addEventListener call.
+
+
+JavaScript
+
+
+
+
+// Hypothetical binding within the initialize function
+const expandAllBtn = document.getElementById('expandAllBtn');
+const collapseAllBtn = document.getElementById('collapseAllBtn');
+
+expandAllBtn.addEventListener('click', expandAllNodes);
+collapseAllBtn.addEventListener('click', collapseAllNodes);
+
+This completes the functional circuit, linking the user-initiated click on the custom buttons to the core logic that manipulates the mind map.
+
+
+Section 5: Final Assembly, Testing, and Debugging Protocol
+
+
+This final section provides the complete, assembled code for the extension and a clear protocol for loading, testing, and debugging it. This ensures that the AI's output can be easily verified and deployed by a human user.
+
+
+Code Assembly
+
+
+The following are the complete and final source files for the extension, incorporating all the logic, best practices, and robust mechanisms discussed in the preceding sections.
+
+
+manifest.json
+
+
+
+
+JSON
+
+
+
+
+{
+ "manifest_version": 3,
+ "name": "NotebookLM Mind Map Expander",
+ "version": "1.0",
+ "description": "Adds 'Expand All' and 'Collapse All' buttons to the NotebookLM mind map view for enhanced navigation.",
+ "icons": {
+   "128": "icon128.png"
+ },
+ "content_scripts": [
+   {
+     "matches": ["https://notebooklm.google.com/*"],
+     "js": ["content.js"],
+     "run_at": "document_idle"
+   }
+ ],
+ "action": {
+   "default_icon": {
+     "128": "icon128.png"
+   },
+   "default_title": "NotebookLM Mind Map Expander"
+ }
+}
+
+
+
+content.js
+
+
+
+
+JavaScript
+
+
+
+
+(() => {
+ 'use strict';
+
+ // --- Configuration ---
+ const MIND_MAP_CONTAINER_SELECTOR = '.mind-map-view'; // A stable selector for the entire mind map component.
+ const TOOLBAR_SELECTOR = '.mind-map-view.control-bar'; // A selector for the toolbar where buttons will be injected.
+ const NODE_SELECTOR = '[role="button"][aria-expanded]'; // Heuristic to find expandable/collapsible nodes.
+
+ // --- Utility Functions ---
+
+ /**
+  * A small delay utility to wait for the DOM to update after programmatic clicks.
+  * @param {number} ms - The number of milliseconds to wait.
+  * @returns {Promise<void>}
+  */
+ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+ // --- Core Logic ---
+
+ /**
+  * Iteratively expands all nodes in the mind map.
+  * It continues to search for and click collapsed nodes until none are left.
+  */
+ async function expandAllNodes() {
+   console.log('NotebookLM Expander: Starting "Expand All" operation.');
+   let collapsedNodes;
+   // The loop continues as long as we can find collapsed nodes.
+   while ((collapsedNodes = document.querySelectorAll(`${MIND_MAP_CONTAINER_SELECTOR} ${NODE_SELECTOR}[aria-expanded="false"]`)).length > 0) {
+     console.log(`Found ${collapsedNodes.length} collapsed nodes to expand.`);
+     for (const node of collapsedNodes) {
+       // Use dispatchEvent for robust clicking in modern web apps.
+       node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+     }
+     // Wait for the UI to re-render and reveal new sub-nodes.
+     await sleep(200);
+   }
+   console.log('NotebookLM Expander: "Expand All" operation complete.');
+ }
+
+ /**
+  * Collapses all nodes except for the root node.
+  */
+ function collapseAllNodes() {
+   console.log('NotebookLM Expander: Starting "Collapse All" operation.');
+   // Get all expanded nodes.
+   const expandedNodes = Array.from(document.querySelectorAll(`${MIND_MAP_CONTAINER_SELECTOR} ${NODE_SELECTOR}[aria-expanded="true"]`));
+   
+   if (expandedNodes.length === 0) {
+       console.log('No expanded nodes to collapse.');
+       return;
+   }
+
+   // Heuristic to identify and preserve the root node(s).
+   // Often, the root node has a unique class, data-attribute, or is at the top level of the node structure.
+   // For this implementation, we assume the first expanded node found is the root and should not be collapsed.
+   // A more robust solution might inspect parent-child relationships.
+   const nodesToCollapse = expandedNodes.slice(1); // Simple heuristic: skip the first one.
+
+   console.log(`Found ${nodesToCollapse.length} nodes to collapse.`);
+   for (const node of nodesToCollapse) {
+     node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+   }
+   console.log('NotebookLM Expander: "Collapse All" operation complete.');
+ }
+
+
+ /**
+  * Injects the "Expand All" and "Collapse All" buttons into the mind map toolbar.
+  * This function is idempotent and will not add duplicate buttons.
+  * @param {HTMLElement} toolbar - The toolbar element to inject buttons into.
+  */
+ function injectButtons(toolbar) {
+   if (document.getElementById('expandAllBtn')) {
+     // Buttons already exist, do nothing.
+     return;
+   }
+   console.log('NotebookLM Expander: Injecting control buttons.');
+
+   const expandButton = document.createElement('button');
+   expandButton.id = 'expandAllBtn';
+   expandButton.textContent = 'Expand All';
+   expandButton.title = 'Expand all nodes in the mind map';
+   
+   const collapseButton = document.createElement('button');
+   collapseButton.id = 'collapseAllBtn';
+   collapseButton.textContent = 'Collapse All';
+   collapseButton.title = 'Collapse all nodes in the mind map';
+
+   // Apply basic styling to match a generic UI. This should be refined by inspecting NotebookLM's actual styles.
+  .forEach(btn => {
+       btn.style.marginLeft = '8px';
+       btn.style.padding = '4px 8px';
+       btn.style.border = '1px solid #ccc';
+       btn.style.borderRadius = '4px';
+       btn.style.backgroundColor = '#f0f0f0';
+       btn.style.cursor = 'pointer';
+   });
+   
+   expandButton.addEventListener('click', expandAllNodes);
+   collapseButton.addEventListener('click', collapseAllNodes);
+
+   toolbar.appendChild(expandButton);
+   toolbar.appendChild(collapseButton);
+ }
+
+ /**
+  * Initializes the extension's functionality for a given mind map instance.
+  * @param {HTMLElement} mindMapContainer - The root element of the mind map.
+  */
+ function initializeMindMapExtension(mindMapContainer) {
+   const toolbar = mindMapContainer.querySelector(TOOLBAR_SELECTOR);
+   if (toolbar) {
+     injectButtons(toolbar);
+   } else {
+     console.warn('NotebookLM Expander: Could not find the mind map toolbar.');
+   }
+ }
+
+ // --- Main Observer ---
+
+ console.log('NotebookLM Mind Map Expander content script loaded.');
+
+ const observer = new MutationObserver((mutationsList) => {
+   for (const mutation of mutationsList) {
+     if (mutation.type === 'childList') {
+       for (const node of mutation.addedNodes) {
+         // Check if the added node is an element and if it contains our target.
+         if (node.nodeType === 1) {
+           if (node.matches(MIND_MAP_CONTAINER_SELECTOR)) {
+             console.log('NotebookLM Expander: Mind map container detected.');
+             initializeMindMapExtension(node);
+           } else {
+             // Also check if a descendant of the added node is our target.
+             const mindMap = node.querySelector(MIND_MAP_CONTAINER_SELECTOR);
+             if (mindMap) {
+               console.log('NotebookLM Expander: Mind map container detected within added node.');
+               initializeMindMapExtension(mindMap);
+             }
+           }
+         }
+       }
+     }
+   }
+ });
+
+ // Start observing the entire document for additions.
+ observer.observe(document.documentElement, {
+   childList: true,
+   subtree: true
+ });
+
+})();
+
+
+
+Loading the Extension
+
+
+To load the generated extension into Google Chrome for testing, follow these steps 7:
+1. Save the two files above, manifest.json and content.js, into a new, empty folder on your computer. If you have an icon, name it icon128.png and place it in the same folder.
+2. Open the Google Chrome browser.
+3. Navigate to the extensions management page by entering chrome://extensions in the address bar and pressing Enter.
+4. In the top-right corner of the page, locate the "Developer mode" toggle and ensure it is enabled (switched on).
+5. Three new buttons will appear: "Load unpacked," "Pack extension," and "Update." Click the "Load unpacked" button.
+6. A file selection dialog will open. Navigate to and select the folder you created in step 1.
+7. The "NotebookLM Mind Map Expander" extension should now appear in your list of installed extensions. Ensure it is enabled.
+
+
+Testing Protocol
+
+
+A structured testing plan is essential to verify that all aspects of the extension are functioning correctly.
+1. Initial Setup: Navigate to notebooklm.google.com. If you are not already logged in, do so.
+2. Mind Map Generation: Create a new notebook or open an existing one. Add several sources (e.g., PDFs, websites) to ensure a complex, multi-level mind map can be generated. Click the "Mind Map" chip in the chat panel to generate the visualization.
+3. Verification 1: UI Injection: Once the mind map appears, inspect its toolbar area. Confirm that two new buttons, "Expand All" and "Collapse All," are present and styled appropriately.
+4. Verification 2: Expand All Functionality: Click the "Expand All" button. Observe the mind map carefully. All nodes, including deeply nested sub-nodes, should progressively expand until the entire tree is visible.
+5. Verification 3: Collapse All Functionality: After all nodes are expanded, click the "Collapse All" button. Observe that all nodes, with the exception of the central root node, collapse back to their initial state.
+6. Verification 4: Lifecycle Robustness: Close the mind map view (e.g., by deleting the note or switching to another view). Then, generate a new mind map from the same or different sources. Confirm that the "Expand All" and "Collapse All" buttons are correctly injected into the new mind map view and that they are fully functional.
+
+
+Debugging Tips
+
+
+If the extension does not behave as expected, use the following debugging techniques 10:
+* Open Developer Tools: On the NotebookLM page, right-click anywhere and select "Inspect" from the context menu. This will open the Chrome Developer Tools.
+* Check the Console: Select the "Console" tab in the Developer Tools. The content.js script is designed to output status messages (e.g., "Mind map container detected," "Injecting control buttons"). Look for these messages to trace the script's execution flow. Any errors thrown by the script will also appear here in red.
+* Inspect the DOM: Select the "Elements" tab. Use this to inspect the HTML structure of the page. You can verify if the mind map container has the expected selector, if the toolbar was found, and if the buttons were appended correctly. You can also inspect the mind map nodes directly to check the state of their aria-expanded attributes.
+Works cited
+1. Mindmap export and "expand/collapse all" would be appreciated : r/notebooklm - Reddit, accessed July 13, 2025, https://www.reddit.com/r/notebooklm/comments/1lezhk1/mindmap_export_and_expandcollapse_all_would_be/
+2. Anyone else frustrated by the way NotebookLM handles the mind map + reading panel?, accessed July 13, 2025, https://www.reddit.com/r/notebooklm/comments/1k3328l/anyone_else_frustrated_by_the_way_notebooklm/
+3. MutationObserver - Web APIs | MDN, accessed July 13, 2025, https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
+4. Detect DOM changes with mutation observers | Blog - Chrome for Developers, accessed July 13, 2025, https://developer.chrome.com/blog/detect-dom-changes-with-mutation-observers
+5. Content scripts | Chrome Extensions, accessed July 13, 2025, https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts
+6. Content scripts - Mozilla - MDN Web Docs, accessed July 13, 2025, https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Content_scripts
+7. How to Make a Chrome Extension - Thoughtbot, accessed July 13, 2025, https://thoughtbot.com/blog/how-to-make-a-chrome-extension
+8. A Guide to Chrome Extension Configuration: Manifest.json File - DEV Community, accessed July 13, 2025, https://dev.to/scriptjsh/a-guide-to-chrome-extension-configuration-manifestjson-file-15kn
+9. Writing Extensions for Chrome: A Developer's Guide - Daily.dev, accessed July 13, 2025, https://daily.dev/blog/writing-extensions-for-chrome-a-developers-guide
+10. How to Build a Chrome Extension: A Step-by-Step Guide - Callstack, accessed July 13, 2025, https://www.callstack.com/blog/how-to-build-a-chrome-extension
+11. manifest.json - Mozilla - MDN Web Docs, accessed July 13, 2025, https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json
+12. content_scripts - Mozilla - MDN Web Docs, accessed July 13, 2025, https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/content_scripts
+13. Manifest - content scripts | Chrome Extensions, accessed July 13, 2025, https://developer.chrome.com/docs/extensions/reference/manifest/content-scripts
+14. Tutorial: Getting Started (Hello, World!) - Google Chrome Extensions, accessed July 13, 2025, http://www.dre.vanderbilt.edu/~schmidt/android/android-4.0/external/chromium/chrome/common/extensions/docs/getstarted.html
+15. Hello World extension - Chrome for Developers, accessed July 13, 2025, https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world
+16. developer.chrome.com, accessed July 13, 2025, https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts#:~:text=Content%20scripts%20are%20files%20that,information%20to%20their%20parent%20extension.
+17. Visualize Like a Pro: How to Use NotebookLM Mind Maps for ..., accessed July 13, 2025, https://medium.com/the-ai-entrepreneurs/visualize-like-a-pro-how-to-use-notebooklm-mind-maps-for-smarter-ai-research-026bba280227
+18. Use Mind Maps in NotebookLM - NotebookLM Help - Google Help, accessed July 13, 2025, https://support.google.com/notebooklm/answer/16212283?hl=en
+19. JavaScript: Wait for Element to Exist -Simple Explanation | by ryan - Medium, accessed July 13, 2025, https://medium.com/@ryan_forrester_/javascript-wait-for-element-to-exist-simple-explanation-1cd8c569e354
+20. MutationObserver: observe() method - Web APIs - MDN Web Docs, accessed July 13, 2025, https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver/observe
+21. How do I wait for an element to exist? - Stack Overflow, accessed July 13, 2025, https://stackoverflow.com/questions/75564305/how-do-i-wait-for-an-element-to-exist
+22. Using Google NotebookLM, accessed July 13, 2025, https://support.stedwards.edu/TDClient/96/Portal/KB/PrintArticle?ID=1055
+23. Mind Maps Made Easy With NotebookLM - Tubarks - The Musings of Stan Skrabut |, accessed July 13, 2025, https://tubarksblog.com/2025/05/25/mind-maps-made-easy-with-notebooklm/
+24. Inject button into site (Chrome Extension content script) - Stack Overflow, accessed July 13, 2025, https://stackoverflow.com/questions/25025030/inject-button-into-site-chrome-extension-content-script
+25. How to run a function from content script, when an injected button was clicked?, accessed July 13, 2025, https://stackoverflow.com/questions/71185400/how-to-run-a-function-from-content-script-when-an-injected-button-was-clicked
+26. Google debuts launches maps in its NotebookLM AI notebook, accessed July 13, 2025, https://www.rdworldonline.com/google-debuts-mind-maps-in-its-notebooklm-ai-notebook/
+27. Interactive Mind Map and Output Language Selector rolling out to ..., accessed July 13, 2025, https://www.reddit.com/r/notebooklm/comments/1jf9lvt/interactive_mind_map_and_output_language_selector/
+28. Using contentScript to click buttons on a Web Page not working unless I mouse click on the page first. - Reddit, accessed July 13, 2025, https://www.reddit.com/r/chrome_extensions/comments/1d98gd0/using_contentscript_to_click_buttons_on_a_web/
