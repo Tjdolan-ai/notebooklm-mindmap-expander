@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotebookLM Mind Map Expander Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Options</h1>
+    <form id="options-form">
+      <div class="form-group">
+        <label for="auto-expand">
+          <input type="checkbox" id="auto-expand" name="autoExpand">
+          Automatically expand mind maps on load
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="hotkeys-enabled">
+          <input type="checkbox" id="hotkeys-enabled" name="hotkeysEnabled">
+          Enable hotkeys (Ctrl+Shift+E / Ctrl+Shift+C)
+        </label>
+      </div>
+      <button type="submit">Save</button>
+    </form>
+    <div id="status" class="status"></div>
+  </div>
+  <script src="dist/options.js"></script>
+</body>
+</html>
