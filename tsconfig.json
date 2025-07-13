@@ -5,7 +5,8 @@
     "module": "ES2022",
     "strict": true,
     "skipLibCheck": true,
-    "outDir": "dist",
+    "outDir": "./dist",
+    "types": ["chrome"],
     "rootDir": "src"
   },
   "include": ["src/**/*"]

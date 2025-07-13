@@ -12,6 +12,9 @@ const DEBOUNCE_MS = 200;
 const EXPAND_LABEL = "Expand";
 const COLLAPSE_LABEL = "Collapse";
 
+type ThemePref = "auto" | "light" | "dark";
+let themePref: ThemePref = "auto";
+
 let debouncedTimeout: number | null = null;
 let lastContainer: HTMLElement | null = null;
 
@@ -85,6 +88,22 @@ function walkAndToggle(labelPrefix: string): void {
   }
 }
 
+function loadTheme(): void {
+  if (typeof chrome === "undefined" || !chrome.storage) return;
+  chrome.storage.sync.get("themePreference", (res) => {
+    themePref = (res.themePreference as ThemePref) || "auto";
+  });
+}
+
+function computeTheme(): "light" | "dark" {
+  if (themePref === "auto") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+  return themePref;
+}
+
 /* –––––––––––––––– bootstrap –––––––––––––––– */
 
 /**
@@ -106,16 +125,33 @@ function injectToggle(): void {
     cursor: "pointer"
   } as CSSStyleDeclaration);
 
-  wrapper.textContent = "🌳";
-  wrapper.title = "Expand / Collapse";
+  wrapper.style.color = computeTheme() === "dark" ? "#fff" : "#000";
+
+  const toggle = document.createElement("span");
+  toggle.textContent = "🌳";
+  toggle.title = "Expand / Collapse";
+  toggle.style.cursor = "pointer";
 
   let expanded = false;
-  wrapper.addEventListener("click", () => {
+  toggle.addEventListener("click", () => {
     expanded ? collapseAll() : expandAll();
     expanded = !expanded;
-    wrapper.textContent = expanded ? "🌲" : "🌳";
+    toggle.textContent = expanded ? "🌲" : "🌳";
   });
 
+  const settings = document.createElement("span");
+  settings.textContent = "⚙️";
+  settings.title = "Options";
+  settings.style.marginLeft = "8px";
+  settings.style.cursor = "pointer";
+  settings.addEventListener("click", () => {
+    if (typeof chrome !== "undefined" && chrome.runtime?.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+    }
+  });
+
+  wrapper.appendChild(toggle);
+  wrapper.appendChild(settings);
   lastContainer!.appendChild(wrapper);
 }
 
@@ -159,6 +195,7 @@ function registerHotkeys(): void {
 
 /* Entry point – only bootstrap when DOM is present */
 if (hasDOM()) {
+  loadTheme();
   observeMindMap();
   registerHotkeys();
 }

@@ -31,5 +31,6 @@
   },
   "action": {
     "default_title": "Mind Map Expander"
-  }
+  },
+  "options_page": "options.html"
 }
