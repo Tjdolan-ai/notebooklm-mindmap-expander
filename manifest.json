@@ -1,36 +1,36 @@
 {
   "manifest_version": 3,
-  "name": "NotebookLM Mind Map Expander",
-  "version": "0.1.0",
-  "description": "Injects buttons to expand or collapse all nodes in a NotebookLM mind map.",
+  "name": "NotebookLM Mind Map Expander Pro",
+  "version": "0.2.0",
+  "description": "Enhances NotebookLM mind maps with advanced controls like partial expansion, export, search, and themes.",
   "icons": {
     "128": "icon128.png"
   },
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["storage"],
   "host_permissions": ["https://notebooklm.google.com/*"],
+  "background": {
+    "service_worker": "dist/background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://notebooklm.google.com/*"],
       "js": ["dist/expander.js"],
+      "css": ["injected_styles.css"],
       "run_at": "document_idle"
     }
   ],
-  "commands": {
-    "expand": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+E"
-      },
-      "description": "Expand all branches"
-    },
-    "collapse": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+C"
-      },
-      "description": "Collapse all branches"
-    }
-  },
   "action": {
-    "default_title": "Mind Map Expander"
+    "default_title": "Mind Map Expander Pro",
+    "default_popup": "options.html"
   },
-  "options_page": "options.html"
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["welcome.html", "welcome.css", "welcome.js", "options.html", "options.js", "injected_styles.css"],
+      "matches": ["https://notebooklm.google.com/*"]
+    }
+  ]
 }

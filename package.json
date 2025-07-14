@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/expander.ts --bundle --outfile=dist/expander.js",
+    "build": "esbuild src/expander.ts --bundle --outfile=dist/expander.js; esbuild src/background.ts --bundle --outfile=dist/background.js; esbuild src/options.ts --bundle --outfile=dist/options.js",
     "test": "vitest"
   },
   "devDependencies": {

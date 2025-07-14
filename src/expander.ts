@@ -1,201 +1,234 @@
 /**
- * NotebookLM Mind Map Auto‑Expander
- * ---------------------------------
- * Content script (TypeScript) that automatically expands every branch in any
- * Mind Map once it renders. Falls back to a recursive walker if the toolbar's
- * one‑click expand button is absent.
+ * NotebookLM Mind Map Auto-Expander Pro
+ * -------------------------------------
+ * Content script that enhances NotebookLM mind maps with features like
+ * selective expansion, text export, search, and themes.
  *
- * © 2025 Visionary42 — MIT License
+ * © 2025 Visionary42 — MIT License
  */
 
-const DEBOUNCE_MS = 200;
-const EXPAND_LABEL = "Expand";
-const COLLAPSE_LABEL = "Collapse";
-
-type ThemePref = "auto" | "light" | "dark";
-let themePref: ThemePref = "auto";
+const CONFIG = {
+  DEBOUNCE_MS: 200,
+  CONTAINER_SELECTOR: 'div[class^="MindMapViewer"]',
+  EXPAND_LABEL: "Expand",
+  COLLAPSE_LABEL: "Collapse",
+  HIGHLIGHT_CLASS: 'nlm-search-highlight',
+};
 
 let debouncedTimeout: number | null = null;
 let lastContainer: HTMLElement | null = null;
+let isDarkTheme = false;
 
-/**
- * Utility to detect whether we're running in a browser-like environment with a
- * real DOM.  This allows the library to be imported in Node.js/Vitest without
- * immediately throwing reference errors for global browser APIs.
- */
 function hasDOM(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-/**
- * Public API — can be invoked via UI button or hotkeys.
- */
-export function expandAll(): void {
-  if (!hasDOM()) return;
-  if (!ensureContainer()) return;
-  if (tryToolbarExpand()) return;
-  walkAndToggle(EXPAND_LABEL);
-}
-
-export function collapseAll(): void {
-  if (!hasDOM()) return;
-  if (!ensureContainer()) return;
-  if (tryToolbarCollapse()) return;
-  walkAndToggle(COLLAPSE_LABEL);
-}
-
-/* –––––––––––––––– private helpers –––––––––––––––– */
-
 function ensureContainer(): boolean {
-  if (lastContainer && document.contains(lastContainer)) return true;
-  const candidate = document.querySelector<HTMLElement>('div[class^="MindMapViewer"]');
-  if (!candidate) return false;
-  lastContainer = candidate;
-  return true;
-}
-
-function tryToolbarExpand(): boolean {
-  const button = document.querySelector<HTMLButtonElement>('button[aria-label*="open"][role="button"],button[aria-label*="Expand all"][role="button"]');
-  if (button) {
-    button.click();
+  if (lastContainer && document.body.contains(lastContainer)) return true;
+  const container = document.querySelector<HTMLElement>(CONFIG.CONTAINER_SELECTOR);
+  if (container) {
+    lastContainer = container;
     return true;
   }
   return false;
 }
 
-function tryToolbarCollapse(): boolean {
-  const button = document.querySelector<HTMLButtonElement>('button[aria-label*="close"][role="button"],button[aria-label*="Collapse all"][role="button"]');
-  if (button) {
-    button.click();
-    return true;
-  }
-  return false;
-}
+function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: number = -1, currentDepth: number = 0) {
+    if (maxDepth !== -1 && currentDepth >= maxDepth) {
+        return;
+    }
 
-function walkAndToggle(labelPrefix: string): void {
-  const seen = new Set<string>();
-  let didWork = true;
-  while (didWork) {
-    didWork = false;
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`button[aria-label^="${labelPrefix}"][role="button"]`));
+    const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>(`:scope > button[aria-label^="${labelPrefix}"]`));
     for (const btn of buttons) {
-      const id = btn.id || btn.getAttribute("data-node-id") || Math.random().toString(36);
-      if (seen.has(id)) continue;
-      btn.click();
-      seen.add(id);
-      didWork = true;
+        btn.click();
+        // Recursively walk children if expanding
+        if (labelPrefix === CONFIG.EXPAND_LABEL) {
+            const childContainer = btn.closest('.node')?.querySelector(':scope > .node-children');
+            if (childContainer) {
+                const children = Array.from(childContainer.querySelectorAll<HTMLElement>(':scope > .node-child > .node'));
+                for (const child of children) {
+                    walkAndToggle(child, labelPrefix, maxDepth, currentDepth + 1);
+                }
+            }
+        }
+    }
+}
+
+function expand(depth: number) {
+    if (!lastContainer) return;
+    const rootNode = lastContainer.querySelector<HTMLElement>('.node');
+    if (rootNode) {
+        walkAndToggle(rootNode, CONFIG.EXPAND_LABEL, depth);
+    }
+}
+
+function collapseAll() {
+    if (!lastContainer) return;
+    const buttons = Array.from(lastContainer.querySelectorAll<HTMLButtonElement>(`button[aria-label^="${CONFIG.COLLAPSE_LABEL}"]`));
+    // Iterate in reverse to collapse deepest nodes first
+    for (const btn of buttons.reverse()) {
+        btn.click();
+    }
+}
+
+function generateOutline(): string {
+  if (!lastContainer) return "Mind map not found.";
+
+  let outline = "";
+  function walk(node: Element, depth: number) {
+    const label = node.querySelector('.node-label-text')?.textContent?.trim();
+    if (label) {
+      outline += `${"  ".repeat(depth)}- ${label}\n`;
+    }
+    const childrenContainer = node.querySelector(':scope > .node-children');
+    if (childrenContainer) {
+        const children = Array.from(childrenContainer.querySelectorAll(':scope > .node-child > .node'));
+        for (const child of children) {
+          walk(child, depth + 1);
+        }
     }
   }
-}
 
-function loadTheme(): void {
-  if (typeof chrome === "undefined" || !chrome.storage) return;
-  chrome.storage.sync.get("themePreference", (res) => {
-    themePref = (res.themePreference as ThemePref) || "auto";
-  });
-}
-
-function computeTheme(): "light" | "dark" {
-  if (themePref === "auto") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+  const root = lastContainer.querySelector('.node');
+  if (root) {
+    walk(root, 0);
   }
-  return themePref;
+
+  return outline.trim();
 }
 
-/* –––––––––––––––– bootstrap –––––––––––––––– */
+function showOutlineModal(outline: string) {
+  // Remove existing modal first
+  document.getElementById("nlm-exporter-modal")?.remove();
 
-/**
- * Injects custom floating toggle in the upper‑right corner of the Mind Map.
- */
-function injectToggle(): void {
-  if (document.getElementById("nlm-expander-toggle")) return;
-  if (!ensureContainer()) return;
+  const modal = document.createElement("div");
+  modal.id = "nlm-exporter-modal";
+  modal.className = isDarkTheme ? 'dark' : '';
 
-  const wrapper = document.createElement("div");
-  wrapper.id = "nlm-expander-toggle";
-  Object.assign(wrapper.style, {
-    position: "absolute",
-    top: "8px",
-    right: "8px",
-    zIndex: "10000",
-    fontSize: "14px",
-    userSelect: "none",
-    cursor: "pointer"
-  } as CSSStyleDeclaration);
+  const modalContent = document.createElement("div");
+  modalContent.className = "modal-content";
 
-  wrapper.style.color = computeTheme() === "dark" ? "#fff" : "#000";
+  const pre = document.createElement("pre");
+  pre.textContent = outline;
 
-  const toggle = document.createElement("span");
-  toggle.textContent = "🌳";
-  toggle.title = "Expand / Collapse";
-  toggle.style.cursor = "pointer";
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "Close";
+  closeButton.addEventListener("click", () => modal.remove());
 
-  let expanded = false;
-  toggle.addEventListener("click", () => {
-    expanded ? collapseAll() : expandAll();
-    expanded = !expanded;
-    toggle.textContent = expanded ? "🌲" : "🌳";
-  });
-
-  const settings = document.createElement("span");
-  settings.textContent = "⚙️";
-  settings.title = "Options";
-  settings.style.marginLeft = "8px";
-  settings.style.cursor = "pointer";
-  settings.addEventListener("click", () => {
-    if (typeof chrome !== "undefined" && chrome.runtime?.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    }
-  });
-
-  wrapper.appendChild(toggle);
-  wrapper.appendChild(settings);
-  lastContainer!.appendChild(wrapper);
+  modalContent.appendChild(pre);
+  modalContent.appendChild(closeButton);
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
 }
 
-/**
- * Observes DOM mutations to detect Mind Map render events.
- */
-function observeMindMap(): void {
+function handleSearch(event: Event) {
+    const query = (event.target as HTMLInputElement).value.toLowerCase();
+    if (!lastContainer) return;
+
+    // Clear previous highlights
+    lastContainer.querySelectorAll(`.${CONFIG.HIGHLIGHT_CLASS}`).forEach(el => {
+        el.classList.remove(CONFIG.HIGHLIGHT_CLASS);
+    });
+
+    if (query.length < 2) return;
+
+    const labels = lastContainer.querySelectorAll<HTMLElement>('.node-label-text');
+    labels.forEach(label => {
+        if (label.textContent?.toLowerCase().includes(query)) {
+            label.closest('.node')?.classList.add(CONFIG.HIGHLIGHT_CLASS);
+        }
+    });
+}
+
+
+function injectToolbar() {
+  if (document.getElementById("nlm-expander-toolbar")) return;
+  if (!ensureContainer() || !lastContainer) return;
+
+  const toolbarWrapper = document.createElement("div");
+  toolbarWrapper.id = "nlm-expander-toolbar";
+  toolbarWrapper.className = isDarkTheme ? 'dark' : '';
+
+  // --- Expand Controls ---
+  const expandButton = document.createElement("button");
+  expandButton.textContent = "Expand";
+  expandButton.title = "Expand nodes to the selected depth";
+  expandButton.addEventListener("click", () => {
+      const depthSelect = document.getElementById('depth-select') as HTMLSelectElement;
+      expand(parseInt(depthSelect.value, 10));
+  });
+
+  const depthSelect = document.createElement("select");
+  depthSelect.id = 'depth-select';
+  depthSelect.innerHTML = `
+      <option value="1">1 Level</option>
+      <option value="2">2 Levels</option>
+      <option value="3">3 Levels</option>
+      <option value="-1" selected>All</option>
+  `;
+
+  // --- Collapse Button ---
+  const collapseButton = document.createElement("button");
+  collapseButton.textContent = "Collapse All";
+  collapseButton.addEventListener("click", collapseAll);
+
+  // --- Export Button ---
+  const exportButton = document.createElement("button");
+  exportButton.textContent = "Export";
+  exportButton.title = "Export mind map as a text outline";
+  exportButton.addEventListener("click", () => {
+      const outline = generateOutline();
+      showOutlineModal(outline);
+  });
+
+  // --- Search Input ---
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.placeholder = "Search map...";
+  searchInput.addEventListener("input", handleSearch);
+
+  // --- Theme Toggle ---
+   const themeToggle = document.createElement("button");
+   themeToggle.textContent = "Theme";
+   themeToggle.title = "Toggle light/dark theme";
+   themeToggle.addEventListener('click', () => {
+       isDarkTheme = !isDarkTheme;
+       toolbarWrapper.classList.toggle('dark', isDarkTheme);
+       document.getElementById("nlm-exporter-modal")?.classList.toggle('dark', isDarkTheme);
+   });
+
+
+  // --- Assemble Toolbar ---
+  toolbarWrapper.appendChild(depthSelect);
+  toolbarWrapper.appendChild(expandButton);
+  toolbarWrapper.appendChild(collapseButton);
+  toolbarWrapper.appendChild(exportButton);
+  toolbarWrapper.appendChild(searchInput);
+  toolbarWrapper.appendChild(themeToggle);
+  lastContainer.appendChild(toolbarWrapper);
+}
+
+function observeMindMap() {
   if (!hasDOM() || typeof MutationObserver === "undefined") return;
+
   const observer = new MutationObserver(() => {
     if (debouncedTimeout) clearTimeout(debouncedTimeout);
     debouncedTimeout = window.setTimeout(() => {
       if (!ensureContainer()) return;
-      injectToggle();
-      expandAll();
-    }, DEBOUNCE_MS);
+      injectToolbar();
+    }, CONFIG.DEBOUNCE_MS);
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
-  // Initial run in case map already present
+
+  // Initial run
   setTimeout(() => {
-    injectToggle();
-    expandAll();
+      if (ensureContainer()) {
+          injectToolbar();
+      }
   }, 1000);
 }
 
-/**
- * Global hotkeys
- */
-function registerHotkeys(): void {
-  window.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (!e.ctrlKey || !e.shiftKey) return;
-    if (e.code === "KeyE") {
-      e.preventDefault();
-      expandAll();
-    } else if (e.code === "KeyC") {
-      e.preventDefault();
-      collapseAll();
-    }
-  });
-}
-
-/* Entry point – only bootstrap when DOM is present */
 if (hasDOM()) {
-  loadTheme();
   observeMindMap();
-  registerHotkeys();
 }

@@ -1,0 +1,79 @@
+#nlm-expander-toolbar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 6px;
+    padding: 6px;
+    display: flex;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border: 1px solid #ccc;
+}
+
+#nlm-expander-toolbar button,
+#nlm-expander-toolbar select {
+    font-family: sans-serif;
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f0f0f0;
+    cursor: pointer;
+}
+
+#nlm-expander-toolbar button:hover {
+    background-color: #e0e0e0;
+}
+
+#nlm-expander-toolbar input {
+    border: 1px solid #ccc;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* Dark Theme */
+#nlm-expander-toolbar.dark {
+    background-color: rgba(40, 40, 40, 0.9);
+    border-color: #555;
+}
+#nlm-expander-toolbar.dark button,
+#nlm-expander-toolbar.dark select {
+    background-color: #555;
+    color: #f0f0f0;
+    border-color: #666;
+}
+#nlm-expander-toolbar.dark input {
+    background-color: #333;
+    color: #f0f0f0;
+    border-color: #666;
+}
+
+/* Search Highlight */
+.nlm-search-highlight {
+    background-color: rgba(255, 255, 0, 0.5);
+    border-radius: 4px;
+}
+
+/* Modal Styling */
+#nlm-exporter-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6); z-index: 10001;
+    display: flex; justify-content: center; align-items: center;
+}
+#nlm-exporter-modal .modal-content {
+    background-color: #fff; padding: 2rem; border-radius: 8px;
+    width: 600px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    font-family: monospace;
+}
+#nlm-exporter-modal button {
+    margin-top: 1rem; padding: 8px 16px; cursor: pointer;
+}
+
+/* Modal Dark Theme */
+#nlm-exporter-modal.dark .modal-content {
+    background-color: #333;
+    color: #f0f0f0;
+}

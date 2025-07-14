@@ -1,0 +1,625 @@
+diff --git a/README.md b/README.md
+index 9c2b7f7cd1f57568d228626ddd272ce632f35439..5d42579f2e17d0882bf4d6bbf060d84a5ab12575 100644
+GIT binary patch
+delta 599
+zcmX|;KWf}S6vmNBB}m~LeAq>7;n=uHktShDOyVjj;seZTo}|H}88P#;n+3zBHX)6=
+z5J+V(t_(gw%3Q-IFysPxBYEAZ5Wnxw`{wfb)%NY%Y?x*BaFcx){$;1@yuicnA3sqP
+zCto||H0CR4>bNNiER2E<zSDl`uy=g_ZFmJApsd{=Wy7V&J_lb1iV<@aL=zjojG*Kd
+zjdzHwxQ~M0|GE}>=1i-Yw2;ng!s{n;bo@RD^QEDdpq46-U}vXT8g5`s-SClC;T)|f
+z<K3IB)z<n`$C48BTtt$}G^KXIFN{D?h^_R6pEz`?7VEN<!e(v>Rq!p|HS(nwsrJSo
+z60>o2Jj|t+)b80!Z&QlbYPwECu3KBL(k(I#*w?i<DnVa9U3EChPn=3&jpuV(#YbM7
+zIQ}(N8ZB_yb42M~WlhPG?mbnix4a45yh}=ReLJVHhOc00K{iVMn7x7bc4pS@pppmc
+zoi(kI)%Pdcap1=m<E#fryB>^>EA^9=Tw69^Sv5^2Gwkl-<J3RTFEA_9?zsE=>`(R|
+Dntjwd
+
+delta 41
+rcmZ1~*u}fSo{>pGVX{4AI*3}v=nkUZGI|23&F`2hnKoZyyUYjx>~9Q6
+
+diff --git a/options.css b/options.css
+index 2c6da2b21110237eed98f932ad52ee52263085f1..82c836ab027f4ce246557d76370014cd02fc4a5a 100644
+--- a/options.css
++++ b/options.css
+@@ -13,46 +13,52 @@ body {
+   padding: 2rem;
+   border-radius: 8px;
+   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+   width: 400px;
+ }
+ 
+ h1 {
+   color: #333;
+   text-align: center;
+ }
+ 
+ .form-group {
+   margin-bottom: 1rem;
+ }
+ 
+ label {
+   display: flex;
+   align-items: center;
+   cursor: pointer;
+ }
+ 
+ input[type="checkbox"] {
+   margin-right: 0.5rem;
+ }
+ 
++select {
++  width: 100%;
++  padding: 0.25rem;
++  margin-top: 0.25rem;
++}
++
+ button {
+   width: 100%;
+   padding: 0.75rem;
+   border: none;
+   background-color: #4285f4;
+   color: #fff;
+   font-size: 1rem;
+   border-radius: 4px;
+   cursor: pointer;
+   transition: background-color 0.3s;
+ }
+ 
+ button:hover {
+   background-color: #357ae8;
+ }
+ 
+ .status {
+   margin-top: 1rem;
+   text-align: center;
+   color: green;
+ }
+diff --git a/options.html b/options.html
+index fabca4ad2045d3bbc8505b36328ff802344d592e..5065c969eeabc33c4027875c9976f2743e66d62e 100644
+--- a/options.html
++++ b/options.html
+@@ -1,31 +1,50 @@
+ <!DOCTYPE html>
+ <html lang="en">
+ <head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>NotebookLM Mind Map Expander Options</title>
+   <link rel="stylesheet" href="options.css">
+ </head>
+ <body>
+   <div class="container">
+     <h1>Options</h1>
+     <form id="options-form">
+       <div class="form-group">
+         <label for="auto-expand">
+           <input type="checkbox" id="auto-expand" name="autoExpand">
+           Automatically expand mind maps on load
+         </label>
+       </div>
+       <div class="form-group">
+         <label for="hotkeys-enabled">
+           <input type="checkbox" id="hotkeys-enabled" name="hotkeysEnabled">
+           Enable hotkeys (Ctrl+Shift+E / Ctrl+Shift+C)
+         </label>
+       </div>
++      <div class="form-group">
++        <label for="default-depth">Default expand depth on load</label>
++        <select id="default-depth" name="defaultDepth">
++          <option value="0">All</option>
++          <option value="1">1</option>
++          <option value="2">2</option>
++          <option value="3">3</option>
++          <option value="4">4</option>
++          <option value="5">5</option>
++        </select>
++      </div>
++      <div class="form-group">
++        <label for="theme-select">Theme</label>
++        <select id="theme-select" name="theme">
++          <option value="auto">Auto</option>
++          <option value="light">Light</option>
++          <option value="dark">Dark</option>
++        </select>
++      </div>
+       <button type="submit">Save</button>
+     </form>
+     <div id="status" class="status"></div>
+   </div>
+   <script src="dist/options.js"></script>
+ </body>
+ </html>
+diff --git a/src/expander.ts b/src/expander.ts
+index 4f3d5914cedc58040aa32025d643ddfd438f7792..fbb82dc14586bcfc985ca4b3a7642c2320909b00 100644
+--- a/src/expander.ts
++++ b/src/expander.ts
+@@ -1,158 +1,296 @@
+ /**
+  * NotebookLM Mind Map Auto‑Expander
+  * ---------------------------------
+  * Content script (TypeScript) that automatically expands every branch in any
+  * Mind Map once it renders. Falls back to a recursive walker if the toolbar's
+  * one‑click expand button is absent.
+  *
+  * © 2025 Visionary42 — MIT License
+  */
+ 
+ const DEBOUNCE_MS = 200;
+ const EXPAND_LABEL = "Expand";
+ const COLLAPSE_LABEL = "Collapse";
+ 
+ let debouncedTimeout: number | null = null;
+ let lastContainer: HTMLElement | null = null;
++let progressBar: HTMLDivElement | null = null;
++let progressInner: HTMLDivElement | null = null;
++let progressText: HTMLSpanElement | null = null;
++
++function updateProgress(done: number, total: number): void {
++  if (!progressBar || !progressInner || !progressText) return;
++  progressText.textContent = `${done}/${total}`;
++  const pct = total === 0 ? 0 : (done / total) * 100;
++  progressInner.style.width = `${pct}%`;
++}
++
++interface Options {
++  autoExpand: boolean;
++  hotkeysEnabled: boolean;
++  defaultDepth: number;
++  theme: "auto" | "light" | "dark";
++}
++
++const options: Options = {
++  autoExpand: true,
++  hotkeysEnabled: true,
++  defaultDepth: 0,
++  theme: "auto",
++};
++
++function loadOptions(): Promise<void> {
++  return new Promise((resolve) => {
++    if (typeof chrome !== "undefined" && chrome.storage?.sync) {
++      chrome.storage.sync.get(
++        ["autoExpand", "hotkeysEnabled", "defaultDepth", "theme"],
++        (res) => {
++          options.autoExpand = res.autoExpand !== false;
++          options.hotkeysEnabled = res.hotkeysEnabled !== false;
++          options.defaultDepth =
++            typeof res.defaultDepth === "number" ? res.defaultDepth : 0;
++          options.theme = res.theme || "auto";
++          resolve();
++        }
++      );
++    } else {
++      resolve();
++    }
++  });
++}
+ 
+ /**
+  * Utility to detect whether we're running in a browser-like environment with a
+  * real DOM.  This allows the library to be imported in Node.js/Vitest without
+  * immediately throwing reference errors for global browser APIs.
+  */
+ function hasDOM(): boolean {
+   return typeof window !== "undefined" && typeof document !== "undefined";
+ }
+ 
+ /**
+  * Public API — can be invoked via UI button or hotkeys.
+  */
+ export function expandAll(): void {
+   if (!hasDOM()) return;
+   if (!ensureContainer()) return;
+   if (tryToolbarExpand()) return;
+-  walkAndToggle(EXPAND_LABEL);
++  walkAndToggle(EXPAND_LABEL, Infinity, true, updateProgress);
+ }
+ 
+ export function collapseAll(): void {
+   if (!hasDOM()) return;
+   if (!ensureContainer()) return;
+   if (tryToolbarCollapse()) return;
+   walkAndToggle(COLLAPSE_LABEL);
+ }
+ 
++export function expandDepth(level: number): void {
++  if (!hasDOM()) return;
++  if (!ensureContainer()) return;
++  walkAndToggle(EXPAND_LABEL, level, true, updateProgress);
++}
++
+ /* –––––––––––––––– private helpers –––––––––––––––– */
+ 
+ function ensureContainer(): boolean {
+   if (lastContainer && document.contains(lastContainer)) return true;
+   const candidate = document.querySelector<HTMLElement>('div[class^="MindMapViewer"]');
+   if (!candidate) return false;
+   lastContainer = candidate;
+   return true;
+ }
+ 
+ function tryToolbarExpand(): boolean {
+   const button = document.querySelector<HTMLButtonElement>('button[aria-label*="open"][role="button"],button[aria-label*="Expand all"][role="button"]');
+   if (button) {
+     button.click();
+     return true;
+   }
+   return false;
+ }
+ 
+ function tryToolbarCollapse(): boolean {
+   const button = document.querySelector<HTMLButtonElement>('button[aria-label*="close"][role="button"],button[aria-label*="Collapse all"][role="button"]');
+   if (button) {
+     button.click();
+     return true;
+   }
+   return false;
+ }
+ 
+-function walkAndToggle(labelPrefix: string): void {
++function walkAndToggle(
++  labelPrefix: string,
++  maxDepth = Infinity,
++  animate = false,
++  progressCb?: (done: number, total: number) => void
++): void {
+   const seen = new Set<HTMLElement>();
+ 
+-  function walk(node: HTMLElement) {
+-    const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>(`button[aria-label^="${labelPrefix}"][role="button"]`));
++  const container = document.querySelector('div[class^="MindMapViewer"]');
++  const root = container?.querySelector('.node') as HTMLElement | null;
++  if (!root) return;
++
++  function remaining(): number {
++    const all = Array.from(
++      container!.querySelectorAll<HTMLButtonElement>(
++        `button[aria-label^="${labelPrefix}"][role="button"]`
++      )
++    );
++    return all.filter((b) => !seen.has(b)).length;
++  }
++
++  function walk(node: HTMLElement, depth: number): boolean {
++    if (depth > maxDepth) return false;
++    const buttons = Array.from(
++      node.querySelectorAll<HTMLButtonElement>(
++        `button[aria-label^="${labelPrefix}"][role="button"]`
++      )
++    );
+     for (const btn of buttons) {
+       if (seen.has(btn)) continue;
+       btn.click();
+       seen.add(btn);
+-      walk(node); // Re-query the same node to find new buttons
+-      return; // Only process one button per walk to avoid stale collections
++      progressCb?.(seen.size, seen.size + remaining());
++      return true;
++    }
++    const children = Array.from(
++      node.querySelectorAll<HTMLElement>(':scope > .node-children > .node-child > .node')
++    );
++    for (const child of children) {
++      if (walk(child, depth + 1)) return true;
+     }
++    return false;
+   }
+ 
+-  const container = document.querySelector('div[class^="MindMapViewer"]');
+-  if (container) {
+-    walk(container as HTMLElement);
++  progressCb?.(0, remaining());
++
++  function loop() {
++    if (!walk(root, 0)) {
++      progressCb?.(seen.size, seen.size);
++      return;
++    }
++    if (animate) {
++      setTimeout(loop, 120);
++    } else {
++      loop();
++    }
+   }
++
++  loop();
+ }
+ 
+ /* –––––––––––––––– bootstrap –––––––––––––––– */
+ 
+ /**
+  * Injects custom floating toggle in the upper‑right corner of the Mind Map.
+  */
+ function injectToggle(): void {
+   if (document.getElementById("nlm-expander-toggle")) return;
+   if (!ensureContainer()) return;
+ 
+   const wrapper = document.createElement("div");
+   wrapper.id = "nlm-expander-toggle";
+   Object.assign(wrapper.style, {
+     position: "absolute",
+     top: "8px",
+     right: "8px",
+     zIndex: "10000",
+     fontSize: "14px",
+     userSelect: "none",
+     cursor: "pointer",
+     display: "flex",
+     gap: "8px",
++    padding: "4px",
++    borderRadius: "4px",
+   } as CSSStyleDeclaration);
+ 
++  const dark =
++    options.theme === "dark" ||
++    (options.theme === "auto" &&
++      window.matchMedia("(prefers-color-scheme: dark)").matches);
++  wrapper.style.backgroundColor = dark ? "#333" : "#fff";
++  wrapper.style.color = dark ? "#fff" : "#000";
++
+   const expander = document.createElement("div");
+   expander.textContent = "🌳";
+   expander.title = "Expand / Collapse";
+   let expanded = false;
++  const depthSelect = document.createElement("select");
++  depthSelect.id = "nlm-depth-select";
++  ["0", "1", "2", "3", "4", "5"].forEach((d) => {
++    const opt = document.createElement("option");
++    opt.value = d;
++    opt.textContent = d === "0" ? "All" : d;
++    depthSelect.appendChild(opt);
++  });
++  depthSelect.value = options.defaultDepth.toString();
++
+   expander.addEventListener("click", () => {
+-    expanded ? collapseAll() : expandAll();
++    const depth = parseInt(depthSelect.value, 10);
++    if (expanded) {
++      collapseAll();
++    } else if (depth > 0) {
++      expandDepth(depth);
++    } else {
++      expandAll();
++    }
+     expanded = !expanded;
+     expander.textContent = expanded ? "🌲" : "🌳";
+   });
+ 
+   const exporter = document.createElement("div");
+   exporter.textContent = "📋";
+   exporter.title = "Export as Text";
+   exporter.addEventListener("click", () => {
+     const outline = generateOutline();
+     showOutlineModal(outline);
+   });
+ 
++  progressBar = document.createElement("div");
++  progressBar.style.flex = "1";
++  progressBar.style.alignSelf = "center";
++  progressBar.style.background = dark ? "#555" : "#ddd";
++  progressBar.style.height = "6px";
++  progressBar.style.borderRadius = "3px";
++
++  progressInner = document.createElement("div");
++  progressInner.style.background = dark ? "#0a84ff" : "#4285f4";
++  progressInner.style.height = "100%";
++  progressInner.style.width = "0%";
++  progressInner.style.borderRadius = "3px";
++
++  progressBar.appendChild(progressInner);
++  progressText = document.createElement("span");
++  progressText.textContent = "0/0";
++  progressText.style.marginLeft = "4px";
+ 
+   wrapper.appendChild(expander);
++  wrapper.appendChild(depthSelect);
++  wrapper.appendChild(progressBar);
++  wrapper.appendChild(progressText);
+   wrapper.appendChild(exporter);
+   lastContainer!.appendChild(wrapper);
+ }
+ 
+ function generateOutline(): string {
+   const container = document.querySelector('div[class^="MindMapViewer"]');
+   if (!container) return "Mind map not found.";
+ 
+   let outline = "";
+   function walk(node: Element, depth: number) {
+     const label = node.querySelector('.node-label-text')?.textContent?.trim();
+     if (label) {
+       outline += `${"  ".repeat(depth)}- ${label}\n`;
+     }
+     const children = Array.from(node.querySelectorAll(':scope > .node-children > .node-child > .node'));
+     for (const child of children) {
+       walk(child, depth + 1);
+     }
+   }
+ 
+   const root = container.querySelector('.node');
+   if (root) {
+     walk(root, 0);
+   }
+ 
+@@ -188,58 +326,73 @@ function showOutlineModal(outline: string): void {
+   const pre = document.createElement("pre");
+   pre.textContent = outline;
+ 
+   const closeButton = document.createElement("button");
+   closeButton.textContent = "Close";
+   closeButton.addEventListener("click", () => {
+     modal.remove();
+   });
+ 
+   modalContent.appendChild(pre);
+   modalContent.appendChild(closeButton);
+   modal.appendChild(modalContent);
+   document.body.appendChild(modal);
+ }
+ 
+ /**
+  * Observes DOM mutations to detect Mind Map render events.
+  */
+ function observeMindMap(): void {
+   if (!hasDOM() || typeof MutationObserver === "undefined") return;
+   const observer = new MutationObserver(() => {
+     if (debouncedTimeout) clearTimeout(debouncedTimeout);
+     debouncedTimeout = window.setTimeout(() => {
+       if (!ensureContainer()) return;
+       injectToggle();
+-      expandAll();
++      if (options.autoExpand) {
++        if (options.defaultDepth > 0) {
++          expandDepth(options.defaultDepth);
++        } else {
++          expandAll();
++        }
++      }
+     }, DEBOUNCE_MS);
+   });
+ 
+   observer.observe(document.body, { childList: true, subtree: true });
+   // Initial run in case map already present
+   setTimeout(() => {
+     injectToggle();
+-    expandAll();
++    if (options.autoExpand) {
++      if (options.defaultDepth > 0) {
++        expandDepth(options.defaultDepth);
++      } else {
++        expandAll();
++      }
++    }
+   }, 1000);
+ }
+ 
+ /**
+  * Global hotkeys
+  */
+ function registerHotkeys(): void {
+   window.addEventListener("keydown", (e: KeyboardEvent) => {
++    if (!options.hotkeysEnabled) return;
+     if (!e.ctrlKey || !e.shiftKey) return;
+     if (e.code === "KeyE") {
+       e.preventDefault();
+       expandAll();
+     } else if (e.code === "KeyC") {
+       e.preventDefault();
+       collapseAll();
+     }
+   });
+ }
+ 
+ /* Entry point – only bootstrap when DOM is present */
+ if (hasDOM()) {
+-  observeMindMap();
+-  registerHotkeys();
++  loadOptions().then(() => {
++    observeMindMap();
++    registerHotkeys();
++  });
+ }
+\ No newline at end of file
+diff --git a/src/options.ts b/src/options.ts
+index a3ccf66bcaa9899783706e31ebe2406fd6ba784b..f42b4e92abbf6900a1fdebad4743675c3fece345 100644
+--- a/src/options.ts
++++ b/src/options.ts
+@@ -1,26 +1,37 @@
+ const autoExpandCheckbox = document.getElementById('auto-expand') as HTMLInputElement;
+ const hotkeysEnabledCheckbox = document.getElementById('hotkeys-enabled') as HTMLInputElement;
++const defaultDepthSelect = document.getElementById('default-depth') as HTMLSelectElement;
++const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
+ const optionsForm = document.getElementById('options-form') as HTMLFormElement;
+ const statusDiv = document.getElementById('status');
+ 
+ // Load saved options
+-chrome.storage.sync.get(['autoExpand', 'hotkeysEnabled'], (result) => {
++chrome.storage.sync.get(['autoExpand', 'hotkeysEnabled', 'defaultDepth', 'theme'], (result) => {
+   autoExpandCheckbox.checked = result.autoExpand !== false; // default to true
+   hotkeysEnabledCheckbox.checked = result.hotkeysEnabled !== false; // default to true
++  if (defaultDepthSelect) {
++    const depth = typeof result.defaultDepth === 'number' ? result.defaultDepth.toString() : '0';
++    defaultDepthSelect.value = depth;
++  }
++  if (themeSelect) {
++    themeSelect.value = result.theme || 'auto';
++  }
+ });
+ 
+ // Save options
+ optionsForm.addEventListener('submit', (event) => {
+   event.preventDefault();
+   const autoExpand = autoExpandCheckbox.checked;
+   const hotkeysEnabled = hotkeysEnabledCheckbox.checked;
++  const defaultDepth = parseInt(defaultDepthSelect.value, 10);
++  const theme = themeSelect.value;
+ 
+-  chrome.storage.sync.set({ autoExpand, hotkeysEnabled }, () => {
++  chrome.storage.sync.set({ autoExpand, hotkeysEnabled, defaultDepth, theme }, () => {
+     if (statusDiv) {
+       statusDiv.textContent = 'Options saved.';
+       setTimeout(() => {
+         statusDiv.textContent = '';
+       }, 1500);
+     }
+   });
+ });
+diff --git a/test/expander.test.ts b/test/expander.test.ts
+index a363e6f34fecc52251c915430184fde5e0839f6b..4a0344393f4fb52245a5e2fe5bb71b244a76d023 100644
+--- a/test/expander.test.ts
++++ b/test/expander.test.ts
+@@ -1,52 +1,52 @@
+ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+-import { expandAll, collapseAll } from '../src/expander';
++import { expandAll, collapseAll, expandDepth } from '../src/expander';
+ 
+ // Mock the global DOM environment
+ beforeEach(() => {
+   vi.stubGlobal('document', {
+     querySelector: vi.fn(),
+     querySelectorAll: vi.fn(),
+     getElementById: vi.fn(),
+     createElement: vi.fn(() => ({
+       style: {},
+       addEventListener: vi.fn(),
+     })),
+     body: {
+       appendChild: vi.fn(),
+     },
+     contains: vi.fn(() => true),
+   });
+   vi.stubGlobal('window', {
+     setTimeout: vi.fn((fn: () => void) => fn() as any),
+     clearTimeout: vi.fn(),
+     addEventListener: vi.fn(),
++    matchMedia: vi.fn(() => ({ matches: false })),
+   });
+   vi.stubGlobal('MutationObserver', class {
+     constructor() {}
+     observe() {}
+     disconnect() {}
+   });
+ });
+ 
+ afterEach(() => {
+   vi.unstubAllGlobals();
+ });
+ 
+ describe('expander', () => {
+   it('should not throw when run in a mocked DOM', () => {
+     expect(() => expandAll()).not.toThrow();
+     expect(() => collapseAll()).not.toThrow();
+   });
+ 
+   it('should click the toolbar expand button if available', () => {
+     const mockButton = { click: vi.fn() };
+     vi.spyOn(document, 'querySelector').mockReturnValueOnce(mockButton as any);
+     expandAll();
+     expect(mockButton.click).toHaveBeenCalled();
+   });
+ 
+-  it('should not throw when run in a mocked DOM', () => {
+-    expect(() => expandAll()).not.toThrow();
+-    expect(() => collapseAll()).not.toThrow();
++  it('should not throw when expanding to a depth', () => {
++    expect(() => expandDepth(2)).not.toThrow();
+   });
+ });
+\ No newline at end of file
