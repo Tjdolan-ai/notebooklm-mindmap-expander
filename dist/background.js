@@ -7,4 +7,9 @@
       chrome.tabs.create({ url });
     }
   });
+  chrome.commands.onCommand.addListener((command, tab) => {
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { action: command });
+    }
+  });
 })();

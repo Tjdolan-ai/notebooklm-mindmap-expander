@@ -33,7 +33,7 @@ function ensureContainer(): boolean {
   return false;
 }
 
-function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: number = -1, currentDepth: number = 0) {
+async function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: number = -1, currentDepth: number = 0) {
     if (maxDepth !== -1 && currentDepth >= maxDepth) {
         return;
     }
@@ -41,24 +41,25 @@ function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: number 
     const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>(`:scope > button[aria-label^="${labelPrefix}"]`));
     for (const btn of buttons) {
         btn.click();
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for DOM update
         // Recursively walk children if expanding
         if (labelPrefix === CONFIG.EXPAND_LABEL) {
             const childContainer = btn.closest('.node')?.querySelector(':scope > .node-children');
             if (childContainer) {
                 const children = Array.from(childContainer.querySelectorAll<HTMLElement>(':scope > .node-child > .node'));
                 for (const child of children) {
-                    walkAndToggle(child, labelPrefix, maxDepth, currentDepth + 1);
+                    await walkAndToggle(child, labelPrefix, maxDepth, currentDepth + 1);
                 }
             }
         }
     }
 }
 
-function expand(depth: number) {
+async function expand(depth: number) {
     if (!lastContainer) return;
     const rootNode = lastContainer.querySelector<HTMLElement>('.node');
     if (rootNode) {
-        walkAndToggle(rootNode, CONFIG.EXPAND_LABEL, depth);
+        await walkAndToggle(rootNode, CONFIG.EXPAND_LABEL, depth);
     }
 }
 
@@ -76,8 +77,9 @@ function generateOutline(): string {
 
   let outline = "";
   function walk(node: Element, depth: number) {
-    const label = node.querySelector('.node-label-text')?.textContent?.trim();
-    if (label) {
+    const labelEl = node.querySelector('.node-label-text');
+    if (labelEl && labelEl.textContent) {
+      const label = labelEl.textContent.trim();
       outline += `${"  ".repeat(depth)}- ${label}\n`;
     }
     const childrenContainer = node.querySelector(':scope > .node-children');
@@ -153,9 +155,9 @@ function injectToolbar() {
   const expandButton = document.createElement("button");
   expandButton.textContent = "Expand";
   expandButton.title = "Expand nodes to the selected depth";
-  expandButton.addEventListener("click", () => {
+  expandButton.addEventListener("click", async () => {
       const depthSelect = document.getElementById('depth-select') as HTMLSelectElement;
-      expand(parseInt(depthSelect.value, 10));
+      await expand(parseInt(depthSelect.value, 10));
   });
 
   const depthSelect = document.createElement("select");

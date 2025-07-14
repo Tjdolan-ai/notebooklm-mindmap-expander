@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="MindMapViewer">
+    <div class="node">
+      <div class="node-label-text">Root</div>
+      <button aria-label="Expand" onclick="expandChildren(this)"></button>
+      <div class="node-children" style="display: none;">
+        <div class="node-child">
+          <div class="node">
+            <div class="node-label-text">Child 1</div>
+            <button aria-label="Expand" onclick="expandChildren(this)"></button>
+            <div class="node-children" style="display: none;">
+              <div class="node-child">
+                <div class="node">
+                  <div class="node-label-text">Grandchild 1</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="node-child">
+          <div class="node">
+            <div class="node-label-text">Child 2</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function expandChildren(button) {
+      const childrenContainer = button.closest('.node').querySelector('.node-children');
+      if (childrenContainer) {
+        childrenContainer.style.display = 'block';
+      }
+    }
+  </script>
+  <script src="../dist/expander.js"></script>
+</body>
+</html>
