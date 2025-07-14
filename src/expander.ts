@@ -41,7 +41,7 @@ async function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: n
     const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>(`:scope > button[aria-label^="${labelPrefix}"]`));
     for (const btn of buttons) {
         btn.click();
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for DOM update
+        await new Promise(resolve => setTimeout(resolve, 0)); // Wait for DOM update
         // Recursively walk children if expanding
         if (labelPrefix === CONFIG.EXPAND_LABEL) {
             const childContainer = btn.closest('.node')?.querySelector(':scope > .node-children');
