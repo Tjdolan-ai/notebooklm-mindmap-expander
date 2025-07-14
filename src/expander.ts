@@ -25,10 +25,14 @@ function hasDOM(): boolean {
 
 function ensureContainer(): boolean {
   if (lastContainer && document.body.contains(lastContainer)) return true;
-  const container = document.querySelector<HTMLElement>(CONFIG.CONTAINER_SELECTOR);
-  if (container) {
-    lastContainer = container;
-    return true;
+  try {
+    const container = document.querySelector<HTMLElement>(CONFIG.CONTAINER_SELECTOR);
+    if (container) {
+      lastContainer = container;
+      return true;
+    }
+  } catch (error) {
+    console.error("Error finding container:", error);
   }
   return false;
 }
@@ -142,8 +146,7 @@ function handleSearch(event: Event) {
 
 
 function injectToolbar() {
-  if (document.getElementById("nlm-expander-toolbar")) return;
-  if (!ensureContainer() || !lastContainer) return;
+  if (document.getElementById("nlm-expander-toolbar") || !lastContainer) return;
 
   const toolbarWrapper = document.createElement("div");
   toolbarWrapper.id = "nlm-expander-toolbar";
@@ -222,11 +225,9 @@ function observeMindMap() {
   observer.observe(document.body, { childList: true, subtree: true });
 
   // Initial run
-  setTimeout(() => {
-      if (ensureContainer()) {
-          injectToolbar();
-      }
-  }, 1000);
+  if (ensureContainer()) {
+      injectToolbar();
+  }
 }
 
 if (hasDOM()) {
