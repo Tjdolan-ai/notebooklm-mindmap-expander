@@ -1,11 +1,10 @@
-// Background service worker for NotebookLM Mind Map Expander Pro
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('NotebookLM Mind Map Expander Pro installed');
-});
-
-// Handle extension icon click
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.url?.includes('notebooklm.google.com')) {
-    chrome.tabs.sendMessage(tab.id, { action: 'toggleExpander' });
-  }
-});
+"use strict";
+(() => {
+  // src/background.ts
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === "install") {
+      const url = chrome.runtime.getURL("welcome.html");
+      chrome.tabs.create({ url });
+    }
+  });
+})();
