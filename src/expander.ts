@@ -7,6 +7,15 @@
  * © 2025 Visionary42 — MIT License
  */
 
+
+/**
+ * @typedef {Object} ExpanderSettings
+ * @property {boolean} autoExpand
+ * @property {number} defaultDepth
+ * @property {boolean} hotkeysEnabled
+ * @property {string} theme
+ */
+
 const CONFIG = {
   DEBOUNCE_MS: 200,
   CONTAINER_SELECTOR: 'div[class^="MindMapViewer"]',
@@ -18,6 +27,43 @@ const CONFIG = {
 let debouncedTimeout: number | null = null;
 let lastContainer: HTMLElement | null = null;
 let isDarkTheme = false;
+let settings: {
+  autoExpand: boolean;
+  defaultDepth: number;
+  hotkeysEnabled: boolean;
+  theme: string;
+} = {
+  autoExpand: true,
+  defaultDepth: -1,
+  hotkeysEnabled: true,
+  theme: 'auto',
+};
+
+/**
+ * Loads settings from chrome.storage.sync and updates local settings.
+ * @returns {Promise<void>}
+ */
+async function loadSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['autoExpand', 'defaultDepth', 'hotkeysEnabled', 'theme'], (result) => {
+      settings.autoExpand = result.autoExpand !== false;
+      settings.defaultDepth = typeof result.defaultDepth === 'number' ? result.defaultDepth : -1;
+      settings.hotkeysEnabled = result.hotkeysEnabled !== false;
+      settings.theme = result.theme || 'auto';
+      isDarkTheme = settings.theme === 'dark' || (settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      resolve();
+    });
+  });
+}
+
+/**
+ * Applies the current theme to toolbar and modal.
+ */
+function applyTheme() {
+  isDarkTheme = settings.theme === 'dark' || (settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.getElementById('nlm-expander-toolbar')?.classList.toggle('dark', isDarkTheme);
+  document.getElementById('nlm-exporter-modal')?.classList.toggle('dark', isDarkTheme);
+}
 
 function hasDOM(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
@@ -145,6 +191,9 @@ function handleSearch(event: Event) {
 }
 
 
+/**
+ * Injects the toolbar UI into the mind map container.
+ */
 function injectToolbar() {
   if (document.getElementById("nlm-expander-toolbar") || !lastContainer) return;
 
@@ -169,6 +218,8 @@ function injectToolbar() {
       <option value="3">3 Levels</option>
       <option value="-1" selected>All</option>
   `;
+  // Set defaultDepth from settings
+  depthSelect.value = settings.defaultDepth?.toString() ?? '-1';
 
   // --- Collapse Button ---
   const collapseButton = document.createElement("button");
@@ -195,11 +246,9 @@ function injectToolbar() {
    themeToggle.textContent = "Theme";
    themeToggle.title = "Toggle light/dark theme";
    themeToggle.addEventListener('click', () => {
-       isDarkTheme = !isDarkTheme;
-       toolbarWrapper.classList.toggle('dark', isDarkTheme);
-       document.getElementById("nlm-exporter-modal")?.classList.toggle('dark', isDarkTheme);
+       settings.theme = isDarkTheme ? 'light' : 'dark';
+       chrome.storage.sync.set({ theme: settings.theme });
    });
-
 
   // --- Assemble Toolbar ---
   toolbarWrapper.appendChild(depthSelect);
@@ -209,8 +258,12 @@ function injectToolbar() {
   toolbarWrapper.appendChild(searchInput);
   toolbarWrapper.appendChild(themeToggle);
   lastContainer.appendChild(toolbarWrapper);
+  applyTheme();
 }
 
+/**
+ * Observes the DOM for mind map container and injects toolbar. Triggers autoExpand if enabled.
+ */
 function observeMindMap() {
   if (!hasDOM() || typeof MutationObserver === "undefined") return;
 
@@ -219,6 +272,10 @@ function observeMindMap() {
     debouncedTimeout = window.setTimeout(() => {
       if (!ensureContainer()) return;
       injectToolbar();
+      // Auto-expand if enabled
+      if (settings.autoExpand) {
+        expand(settings.defaultDepth);
+      }
     }, CONFIG.DEBOUNCE_MS);
   });
 
@@ -226,10 +283,51 @@ function observeMindMap() {
 
   // Initial run
   if (ensureContainer()) {
-      injectToolbar();
+    injectToolbar();
+    if (settings.autoExpand) {
+      expand(settings.defaultDepth);
+    }
   }
 }
 
+
+/**
+ * Handles hotkey commands from background, if hotkeysEnabled.
+ */
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!settings.hotkeysEnabled) return;
+  if (msg?.action === 'expand-mindmap') {
+    expand(settings.defaultDepth);
+  } else if (msg?.action === 'collapse-mindmap') {
+    collapseAll();
+  }
+});
+
+/**
+ * Listen for live settings updates and apply changes.
+ */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync') return;
+  let needsTheme = false;
+  if (changes.theme) {
+    settings.theme = changes.theme.newValue;
+    needsTheme = true;
+  }
+  if (changes.autoExpand) {
+    settings.autoExpand = changes.autoExpand.newValue !== false;
+  }
+  if (changes.defaultDepth) {
+    settings.defaultDepth = typeof changes.defaultDepth.newValue === 'number' ? changes.defaultDepth.newValue : -1;
+  }
+  if (changes.hotkeysEnabled) {
+    settings.hotkeysEnabled = changes.hotkeysEnabled.newValue !== false;
+  }
+  if (needsTheme) applyTheme();
+});
+
+// Main entry
 if (hasDOM()) {
-  observeMindMap();
+  loadSettings().then(() => {
+    observeMindMap();
+  });
 }
