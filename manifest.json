@@ -32,5 +32,19 @@
       "resources": ["welcome.html", "welcome.css", "welcome.js", "options.html", "options.js", "injected_styles.css"],
       "matches": ["https://notebooklm.google.com/*"]
     }
-  ]
+  ],
+  "commands": {
+    "expand-mindmap": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E"
+      },
+      "description": "Expand mind map to default depth"
+    },
+    "collapse-mindmap": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C"
+      },
+      "description": "Collapse all mind map nodes"
+    }
+  }
 }
