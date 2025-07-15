@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "mkdir -p dist && esbuild src/expander.ts --bundle --outfile=dist/expander.js && esbuild src/background.ts --bundle --outfile=dist/background.js && esbuild src/options.ts --bundle --outfile=dist/options.js",
+    "build": "mkdir dist 2>nul & esbuild src/expander.ts --bundle --outfile=dist/expander.js && esbuild src/background.ts --bundle --outfile=dist/background.js && esbuild src/options.ts --bundle --outfile=dist/options.js",
     "test": "vitest"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.0",
     "esbuild": "^0.25.6",
+    "jsdom": "^26.1.0",
     "typescript": "^5.5.4",
     "vitest": "^3.2.4"
   }
