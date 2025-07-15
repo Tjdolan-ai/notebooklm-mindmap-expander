@@ -16,9 +16,11 @@
  * @property {string} theme
  */
 
+
+import { waitForContainer } from './elementDetector';
+
 const CONFIG = {
   DEBOUNCE_MS: 200,
-  CONTAINER_SELECTOR: 'div[class^="MindMapViewer"]',
   EXPAND_LABEL: "Expand",
   COLLAPSE_LABEL: "Collapse",
   HIGHLIGHT_CLASS: 'nlm-search-highlight',
@@ -44,7 +46,7 @@ let settings: {
  * @returns {Promise<void>}
  */
 async function loadSettings() {
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     chrome.storage.sync.get(['autoExpand', 'defaultDepth', 'hotkeysEnabled', 'theme'], (result) => {
       settings.autoExpand = result.autoExpand !== false;
       settings.defaultDepth = typeof result.defaultDepth === 'number' ? result.defaultDepth : -1;
@@ -69,19 +71,7 @@ function hasDOM(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-function ensureContainer(): boolean {
-  if (lastContainer && document.body.contains(lastContainer)) return true;
-  try {
-    const container = document.querySelector<HTMLElement>(CONFIG.CONTAINER_SELECTOR);
-    if (container) {
-      lastContainer = container;
-      return true;
-    }
-  } catch (error) {
-    console.error("Error finding container:", error);
-  }
-  return false;
-}
+// Container detection is now handled by waitForContainer
 
 function walkAndToggle(node: HTMLElement, labelPrefix: string, maxDepth: number = -1, currentDepth: number = 0) {
     if (maxDepth !== -1 && currentDepth >= maxDepth) {
@@ -264,30 +254,37 @@ function injectToolbar() {
 /**
  * Observes the DOM for mind map container and injects toolbar. Triggers autoExpand if enabled.
  */
-function observeMindMap() {
+async function observeMindMap() {
   if (!hasDOM() || typeof MutationObserver === "undefined") return;
-
-  const observer = new MutationObserver(() => {
+  // Wait for container with retry/fallback
+  lastContainer = await waitForContainer(10000, 200);
+  if (!lastContainer) {
+    // Warn already handled in waitForContainer
+    return;
+  }
+  if (!document.getElementById("nlm-expander-toolbar")) {
+    injectToolbar();
+    applyTheme();
+  }
+  if (settings.autoExpand && lastContainer && !lastContainer.dataset.hasAutoExpanded) {
+    expand(settings.defaultDepth);
+    lastContainer.dataset.hasAutoExpanded = 'true';
+  }
+  // Observe for dynamic DOM changes
+  const observer = new MutationObserver(async () => {
     if (debouncedTimeout) clearTimeout(debouncedTimeout);
-    debouncedTimeout = window.setTimeout(() => {
-      if (!ensureContainer()) return;
-      injectToolbar();
-      // Auto-expand if enabled
-      if (settings.autoExpand) {
-        expand(settings.defaultDepth);
+    debouncedTimeout = window.setTimeout(async () => {
+      if (!lastContainer || !document.body.contains(lastContainer)) {
+        lastContainer = await waitForContainer(10000, 200);
+        if (!lastContainer) return;
+      }
+      if (!document.getElementById("nlm-expander-toolbar")) {
+        injectToolbar();
+        applyTheme();
       }
     }, CONFIG.DEBOUNCE_MS);
   });
-
   observer.observe(document.body, { childList: true, subtree: true });
-
-  // Initial run
-  if (ensureContainer()) {
-    injectToolbar();
-    if (settings.autoExpand) {
-      expand(settings.defaultDepth);
-    }
-  }
 }
 
 

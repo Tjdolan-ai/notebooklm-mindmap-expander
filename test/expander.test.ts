@@ -60,7 +60,8 @@ describe('walkAndToggle', () => {
         const buttons = Array.from(container.querySelectorAll('button'));
         const clickSpies = buttons.map(btn => vi.spyOn(btn, 'click'));
 
-        walkAndToggle(container, CONFIG.EXPAND_LABEL, -1);
+        const rootNode = container.querySelector('.node') as HTMLElement;
+        walkAndToggle(rootNode, CONFIG.EXPAND_LABEL, -1);
 
         clickSpies.forEach(spy => expect(spy).toHaveBeenCalled());
     });
@@ -69,7 +70,8 @@ describe('walkAndToggle', () => {
         const buttons = Array.from(container.querySelectorAll('button'));
         const clickSpies = buttons.map(btn => vi.spyOn(btn, 'click'));
 
-        walkAndToggle(container, CONFIG.EXPAND_LABEL, 1);
+        const rootNode = container.querySelector('.node') as HTMLElement;
+        walkAndToggle(rootNode, CONFIG.EXPAND_LABEL, 1);
 
         expect(clickSpies[0]).toHaveBeenCalled();
         expect(clickSpies[1]).not.toHaveBeenCalled();
