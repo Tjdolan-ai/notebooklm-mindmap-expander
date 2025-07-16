@@ -1,386 +1,446 @@
+// src/expander.ts
 /**
- * NotebookLM Mind Map Auto-Expander (FIXED)
- * -----------------------------------------
- * Content script that safely expands mind map nodes without affecting sidebar
- * © 2025 Visionary42 — MIT License
+ * NotebookLM Mind Map Expander - FIXED VERSION
+ * Now targets the actual text symbols used by NotebookLM
  */
 
-import { SafeClicker } from './safeClicker';
-
-const DEBOUNCE_MS = 300;
+const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
-const MAX_RETRIES = 10;
 
-// Updated selectors based on current NotebookLM structure
-const CHAT_INPUT_SELECTORS = [
-  '.conversationRecorder_constructor',
-  '[contenteditable="true"]',
-  'mat-form-field textarea',
-  'textarea[placeholder*="chat"]',
-  'textarea[aria-label*="chat"]',
-  '.mce-autosize-textarea' // Legacy fallback
-];
-
-const PLAYBACK_SELECTORS = [
-  '[aria-label="Play"]',
-  'button[mattooltip*="Play"]',
-  '.mat-icon:has-text("play_arrow")',
-  '[data-test-id="playback-button"]',
-  'button[aria-label*="play"]'
-];
-
-const MIND_MAP_SELECTORS = [
-  '[data-testid="mind-map-container"]',
-  '.mind-map-container',
-  '.mind-map-wrapper',
-  '[class*="mind-map"][role="application"]',
-  '.studio-panel [class*="mind-map"]',
-  'div[class*="MindMap"]',
-  '.notebook-mind-map',
-  '[aria-label*="mind map"]'
-];
-
-const STUDIO_PANEL_SELECTORS = [
-  '.studio-panel',
-  '[data-testid="studio-panel"]',
-  'div[class*="studio"]',
-  '#studio-panel',
-  '.notebook-studio',
-  '[role="main"] [class*="studio"]'
-];
+const HOTKEYS = {
+  expand: { key: 'e', alt: true, shift: true },
+  collapse: { key: 'c', alt: true, shift: true },
+  exportOutline: { key: 'o', alt: true, shift: true }
+};
 
 class NotebookLMExpander {
-  private container: HTMLElement | null = null;
   private observer: MutationObserver | null = null;
+  private isDarkTheme = false;
   private retryCount = 0;
-  private debounceTimer: number | null = null;
-  private isExpanded = false;
+  private toolbar: HTMLElement | null = null;
+  private settings = { autoExpand: true, hotkeysEnabled: true };
+  private expandedNodes = new Set<string>();
 
   constructor() {
     this.init();
-    this.setupMessageListener();
-  }
-
-  private setupMessageListener(): void {
-    // Check if chrome.runtime is available (extension context)
-    if (!chrome?.runtime?.onMessage) {
-      console.warn('Chrome runtime not available');
-      return;
-    }
-
-    // Listen for messages from background script
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message.action === 'expand-all') {
-        this.expandAll();
-        sendResponse({ success: true });
-      } else if (message.action === 'collapse-all') {
-        this.collapseAll();
-        sendResponse({ success: true });
-      }
-      return true; // Keep message channel open for async response
-    });
   }
 
   private async init(): Promise<void> {
-    console.log('🌳 NotebookLM Expander: Initializing...');
+    console.log('🚀 NotebookLM Expander initializing...');
+    await this.loadSettings();
+    this.setupMessageListener();
+    this.registerHotkeys();
+    this.setupMutationObserver();
+    this.checkForMindMap();
+  }
 
+  private async loadSettings(): Promise<void> {
     try {
-      // Wait for NotebookLM interface
-      await this.waitForInterface();
-
-      // Setup observers
-      this.setupObserver();
-
-      // Register hotkeys
-      this.registerHotkeys();
-
-      // Initial check
-      await this.checkForMindMap();
-
-      console.log('✅ NotebookLM Expander: Ready!');
+      const stored = await this.getStorageValues(['autoExpand', 'hotkeysEnabled', 'isDarkTheme']);
+      this.settings.autoExpand = stored.autoExpand !== false;
+      this.settings.hotkeysEnabled = stored.hotkeysEnabled !== false;
+      this.isDarkTheme = stored.isDarkTheme === true;
     } catch (error) {
-      console.error('❌ Initialization failed:', error);
-      this.retry();
+      console.warn('Failed to load settings, using defaults:', error);
     }
   }
 
-  private async waitForInterface(): Promise<void> {
-    // Use SafeClicker to wait for studio panel
-    const element = await SafeClicker.waitForElement(STUDIO_PANEL_SELECTORS, 10000);
-    if (element) {
-      console.log('✅ Studio panel found using SafeClicker');
-      return;
-    }
-
-    throw new Error('Studio panel not found');
+  private getStorageValues(keys: string[]): Promise<any> {
+    return new Promise((resolve) => {
+      if (!chrome?.storage?.sync) {
+        resolve({});
+        return;
+      }
+      
+      chrome.storage.sync.get(keys, (result) => {
+        if (chrome.runtime.lastError) {
+          resolve({});
+        } else {
+          resolve(result);
+        }
+      });
+    });
   }
 
-  private setupObserver(): void {
+  private setupMessageListener(): void {
+    if (!chrome?.runtime?.onMessage) return;
+
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      console.log('Received message:', message);
+      
+      switch (message.action) {
+        case 'expand-nodes':
+        case 'expand-all':
+          this.expandAll();
+          sendResponse({ success: true });
+          break;
+        case 'collapse-nodes':
+        case 'collapse-all':
+          this.collapseAll();
+          sendResponse({ success: true });
+          break;
+        default:
+          sendResponse({ success: false });
+      }
+      
+      return true;
+    });
+  }
+
+  private setupMutationObserver(): void {
     this.observer = new MutationObserver(() => {
-      if (this.debounceTimer) clearTimeout(this.debounceTimer);
-      this.debounceTimer = window.setTimeout(() => {
-        this.checkForMindMap();
-      }, DEBOUNCE_MS);
+      this.checkForMindMap();
     });
 
     this.observer.observe(document.body, {
       childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'data-testid', 'aria-expanded']
+      subtree: true
     });
   }
 
-  private async checkForMindMap(): Promise<void> {
-    // Use updated selectors for mind map container
-    const container = await SafeClicker.waitForElement(MIND_MAP_SELECTORS, 1000);
-
-    if (container && container !== this.container) {
-      this.container = container as HTMLElement;
-      console.log('🎯 Mind map detected using SafeClicker!');
-      this.injectControls();
-
-      // Check if auto-expand is enabled
-      const settings = await this.getSettings();
-      if (settings.autoExpand) {
-        await this.expandAll();
-      }
-    }
-  }
-
-  private injectControls(): void {
-    if (!this.container || document.getElementById('nlm-expander-controls')) return;
-
-    const controls = document.createElement('div');
-    controls.id = 'nlm-expander-controls';
-    controls.innerHTML = `
-      <button id="nlm-expand-toggle" title="Expand/Collapse All (Ctrl+Shift+E)">
-        <span class="expand-icon">▶</span>
-      </button>
-      <button id="nlm-export" title="Export Mind Map">
-        <span class="export-icon">📋</span>
-      </button>
-    `;
-
-    this.container.style.position = 'relative';
-    this.container.appendChild(controls);
-
-    // Event listeners
-    document.getElementById('nlm-expand-toggle')?.addEventListener('click', () => {
-      this.isExpanded ? this.collapseAll() : this.expandAll();
-    });
-
-    document.getElementById('nlm-export')?.addEventListener('click', () => {
-      this.exportMindMap();
-    });
-  }
-
-  async expandAll(): Promise<void> {
-    console.log('🌳 Expanding all nodes...');
-
-    // Method 1: Try toolbar button (safer)
-    const expandButton = await this.findToolbarButton('expand');
-    if (expandButton) {
-      const success = await SafeClicker.safeClick(expandButton);
-      if (success) {
-        this.isExpanded = true;
-        this.updateToggleIcon(true);
-        console.log('✅ Used toolbar expand button');
-        return;
-      }
-    }
-
-    // Method 2: Expand individual nodes
-    await this.toggleNodes(true);
-  }
-
-  async collapseAll(): Promise<void> {
-    console.log('🌲 Collapsing all nodes...');
-
-    // Method 1: Try toolbar button
-    const collapseButton = await this.findToolbarButton('collapse');
-    if (collapseButton) {
-      const success = await SafeClicker.safeClick(collapseButton);
-      if (success) {
-        this.isExpanded = false;
-        this.updateToggleIcon(false);
-        console.log('✅ Used toolbar collapse button');
-        return;
-      }
-    }
-
-    // Method 2: Collapse individual nodes
-    await this.toggleNodes(false);
-  }
-
-  private async findToolbarButton(type: 'expand' | 'collapse'): Promise<HTMLElement | null> {
-    const selectors = type === 'expand' ? [
-      '[aria-label="Expand all"]',
-      '[data-testid="expand-all-button"]',
-      'button[title*="Expand all"]',
-      '.mind-map-toolbar button:has(svg[class*="expand"])',
-      // Specific selectors that won't catch sidebar buttons
-      '.mind-map-container button[aria-label*="Expand all"]',
-      '.studio-panel button[aria-label*="Expand all"]',
-      'button[aria-label*="expand"]'
-    ] : [
-      '[aria-label="Collapse all"]',
-      '[data-testid="collapse-all-button"]',
-      'button[title*="Collapse all"]',
-      '.mind-map-toolbar button:has(svg[class*="collapse"])',
-      // Specific selectors that won't catch sidebar buttons
-      '.mind-map-container button[aria-label*="Collapse all"]',
-      '.studio-panel button[aria-label*="Collapse all"]',
-      'button[aria-label*="collapse"]'
+  private checkForMindMap(): void {
+    const mindMapSelectors = [
+      '[data-cy="studio-panel"]',
+      '.studio-panel',
+      '[aria-label*="mind map" i]',
+      'svg:has(> g > g.node)',
+      'div:has(> svg g.node)'
     ];
 
-    // Use SafeClicker to find the button
-    const button = await SafeClicker.waitForElement(selectors, 2000);
-    if (button && this.isValidMindMapButton(button as HTMLElement)) {
-      return button as HTMLElement;
+    const container = this.findElement(mindMapSelectors);
+    
+    if (container) {
+      console.log('✅ Mind map container detected');
+      this.waitForNodes(container);
     }
+  }
 
+  private findElement(selectors: string[]): Element | null {
+    for (const selector of selectors) {
+      try {
+        const element = document.querySelector(selector);
+        if (element) return element;
+      } catch (e) {
+        // Skip invalid selectors
+      }
+    }
     return null;
   }
 
-  private isValidMindMapButton(button: HTMLElement): boolean {
-    // Ensure button is within mind map context, not sidebar
-    const parent = button.closest('.mind-map-container, .studio-panel, [data-testid="mind-map-container"]');
-    const inSidebar = button.closest('.sidebar, [class*="sidebar"], nav');
-
-    return !!parent && !inSidebar;
+  private async waitForNodes(container: Element): Promise<void> {
+    await this.delay(1000); // Give UI time to render
+    
+    const nodeSelectors = [
+      'g.node',
+      '[class*="node"]',
+      'g:has(> text)'
+    ];
+    
+    const nodes = this.findNodes(container, nodeSelectors);
+    
+    if (nodes.length > 0) {
+      console.log(`✅ Found ${nodes.length} nodes`);
+      
+      if (!this.toolbar) {
+        this.injectToolbar(container);
+      }
+      
+      if (this.settings.autoExpand) {
+        await this.delay(500);
+        this.expandAll();
+      }
+    } else if (this.retryCount < MAX_RETRIES) {
+      this.retryCount++;
+      setTimeout(() => this.waitForNodes(container), RETRY_DELAY);
+    }
   }
 
-  private async toggleNodes(expand: boolean): Promise<void> {
-    const targetState = expand ? 'false' : 'true';
-    const nodeSelectors = [
-      `.mind-map-container [aria-expanded="${targetState}"]`,
-      `.studio-panel [aria-expanded="${targetState}"]`,
-      `[data-testid="mind-map-container"] [aria-expanded="${targetState}"]`,
-      `[class*="mind-map"] [aria-expanded="${targetState}"]`
-    ];
+  private findNodes(container: Element, selectors: string[]): NodeListOf<Element> {
+    for (const selector of selectors) {
+      try {
+        const nodes = container.querySelectorAll(selector);
+        if (nodes.length > 0) return nodes;
+      } catch (e) {
+        // Skip invalid selectors
+      }
+    }
+    return document.querySelectorAll('.null-selector');
+  }
 
-    let toggledCount = 0;
-    const processedNodes = new Set<HTMLElement>();
+  private injectToolbar(container: Element): void {
+    if (this.toolbar) return;
 
-    for (const selector of nodeSelectors) {
-      const nodes = document.querySelectorAll<HTMLElement>(selector);
+    this.toolbar = document.createElement('div');
+    this.toolbar.id = 'nlm-expander-toolbar';
+    this.toolbar.innerHTML = `
+      <style>
+        #nlm-expander-toolbar {
+          position: fixed;
+          top: 80px;
+          right: 20px;
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 8px;
+          padding: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          z-index: 10000;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        #nlm-expander-toolbar.dark {
+          background: #1e1e1e;
+          border-color: #444;
+          color: white;
+        }
+        
+        .nlm-toolbar-header {
+          font-size: 12px;
+          font-weight: 600;
+          margin-bottom: 4px;
+          opacity: 0.8;
+        }
+        
+        .nlm-toolbar-button {
+          background: #f5f5f5;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          padding: 6px 12px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        
+        .nlm-toolbar-button:hover {
+          background: #e8e8e8;
+          transform: translateY(-1px);
+        }
+        
+        .dark .nlm-toolbar-button {
+          background: #333;
+          border-color: #555;
+          color: white;
+        }
+        
+        .dark .nlm-toolbar-button:hover {
+          background: #444;
+        }
+        
+        .nlm-hotkey {
+          opacity: 0.6;
+          font-size: 11px;
+          margin-left: 8px;
+        }
+      </style>
+      <div class="nlm-toolbar-header">Mind Map Tools</div>
+      <button class="nlm-toolbar-button" id="nlm-expand-all">
+        🌳 Expand All <span class="nlm-hotkey">Alt+Shift+E</span>
+      </button>
+      <button class="nlm-toolbar-button" id="nlm-collapse-all">
+        🌲 Collapse All <span class="nlm-hotkey">Alt+Shift+C</span>
+      </button>
+      <button class="nlm-toolbar-button" id="nlm-export">
+        📋 Export <span class="nlm-hotkey">Alt+Shift+O</span>
+      </button>
+      <button class="nlm-toolbar-button" id="nlm-theme-toggle">
+        ${this.isDarkTheme ? '☀️' : '🌙'} Theme
+      </button>
+    `;
 
-      for (const node of nodes) {
-        if (processedNodes.has(node)) continue;
+    if (this.isDarkTheme) {
+      this.toolbar.classList.add('dark');
+    }
 
-        // Validate it's a mind map node button
-        if (this.isValidNodeButton(node)) {
-          const success = await SafeClicker.safeClick(node);
-          if (success) {
-            processedNodes.add(node);
-            toggledCount++;
+    document.body.appendChild(this.toolbar);
 
-            // Small delay to prevent UI overload
-            if (toggledCount % 5 === 0) {
-              await this.delay(50);
-            }
+    // Add event listeners
+    this.toolbar.querySelector('#nlm-expand-all')?.addEventListener('click', () => this.expandAll());
+    this.toolbar.querySelector('#nlm-collapse-all')?.addEventListener('click', () => this.collapseAll());
+    this.toolbar.querySelector('#nlm-export')?.addEventListener('click', () => this.exportToOutline());
+    this.toolbar.querySelector('#nlm-theme-toggle')?.addEventListener('click', () => this.toggleTheme());
+  }
+
+  private expandAll(): void {
+    console.log('🌳 Expanding all nodes...');
+    let expandedCount = 0;
+    
+    // Find all nodes with expand symbols
+    const expandableNodes = document.querySelectorAll('g.node');
+    
+    expandableNodes.forEach(node => {
+      // Check if this node has a ">" symbol (meaning it's collapsed)
+      const expandSymbol = node.querySelector('text.expand-symbol, text');
+      if (expandSymbol && expandSymbol.textContent?.trim() === '>') {
+        // Find the clickable circle element within the same node
+        const clickableCircle = node.querySelector('circle[style*="cursor: pointer"]');
+        if (clickableCircle) {
+          this.simulateClick(clickableCircle);
+          expandedCount++;
+          
+          // Track expanded nodes
+          const nodeId = this.getNodeIdentifier(node);
+          if (nodeId) this.expandedNodes.add(nodeId);
+        }
+      }
+    });
+    
+    console.log(`✅ Expansion complete. Expanded ${expandedCount} nodes.`);
+    
+    // Run again after a delay to catch newly revealed nodes
+    if (expandedCount > 0) {
+      setTimeout(() => {
+        const secondPassCount = this.expandSecondPass();
+        if (secondPassCount > 0) {
+          console.log(`✅ Second pass: Expanded ${secondPassCount} more nodes.`);
+        }
+      }, 500);
+    }
+  }
+
+  private expandSecondPass(): number {
+    let expandedCount = 0;
+    
+    const expandableNodes = document.querySelectorAll('g.node');
+    expandableNodes.forEach(node => {
+      const expandSymbol = node.querySelector('text');
+      if (expandSymbol?.textContent?.trim() === '>') {
+        const nodeId = this.getNodeIdentifier(node);
+        if (nodeId && !this.expandedNodes.has(nodeId)) {
+          const clickableCircle = node.querySelector('circle[style*="cursor: pointer"]');
+          if (clickableCircle) {
+            this.simulateClick(clickableCircle);
+            expandedCount++;
+            this.expandedNodes.add(nodeId);
           }
         }
       }
-    }
-
-    this.isExpanded = expand;
-    this.updateToggleIcon(expand);
-    console.log(`✅ Toggled ${toggledCount} nodes using SafeClicker`);
+    });
+    
+    return expandedCount;
   }
 
-  private isValidNodeButton(element: HTMLElement): boolean {
-    // Must be a button
-    if (element.tagName !== 'BUTTON') return false;
-
-    // Must be within mind map context
-    const inMindMap = element.closest('.mind-map-container, [data-testid="mind-map-container"], .studio-panel');
-    const inSidebar = element.closest('.sidebar, [class*="sidebar"], nav');
-
-    // Must have expand/collapse indicators
-    const hasAriaExpanded = element.hasAttribute('aria-expanded');
-    const hasExpandIcon = !!element.querySelector('[class*="chevron"], [class*="arrow"], .expand-icon');
-
-    return !!inMindMap && !inSidebar && (hasAriaExpanded || hasExpandIcon);
-  }
-
-  private updateToggleIcon(expanded: boolean): void {
-    const icon = document.querySelector('#nlm-expand-toggle .expand-icon');
-    if (icon) {
-      icon.textContent = expanded ? '▼' : '▶';
-      icon.classList.toggle('expanded', expanded);
-    }
-  }
-
-  private async exportMindMap(): Promise<void> {
-    const text = this.extractMindMapText();
-    this.showExportModal(text);
-  }
-
-  private extractMindMapText(): string {
-    if (!this.container) return 'Mind map not found';
-
-    let outline = 'NotebookLM Mind Map Export\n' + '='.repeat(30) + '\n\n';
-
-    const walk = (element: Element, depth = 0): void => {
-      // Find node text
-      const textSelectors = [
-        '.node-label-text',
-        '[class*="node-text"]',
-        '[class*="node-content"]',
-        'span[class*="label"]'
-      ];
-
-      let nodeText = '';
-      for (const selector of textSelectors) {
-        const textEl = element.querySelector(selector);
-        if (textEl?.textContent) {
-          nodeText = textEl.textContent.trim();
-          break;
+  private collapseAll(): void {
+    console.log('🌲 Collapsing all nodes...');
+    let collapsedCount = 0;
+    
+    // Find all nodes with collapse symbols
+    const collapsibleNodes = document.querySelectorAll('g.node');
+    
+    collapsibleNodes.forEach(node => {
+      // Check if this node has a "<" symbol (meaning it's expanded)
+      const collapseSymbol = node.querySelector('text.expand-symbol, text');
+      if (collapseSymbol && collapseSymbol.textContent?.trim() === '<') {
+        // Find the clickable circle element within the same node
+        const clickableCircle = node.querySelector('circle[style*="cursor: pointer"]');
+        if (clickableCircle) {
+          this.simulateClick(clickableCircle);
+          collapsedCount++;
+          
+          // Remove from tracked nodes
+          const nodeId = this.getNodeIdentifier(node);
+          if (nodeId) this.expandedNodes.delete(nodeId);
         }
       }
+    });
+    
+    // Clear tracked nodes
+    this.expandedNodes.clear();
+    
+    console.log(`✅ Collapsed ${collapsedCount} nodes.`);
+  }
 
-      if (nodeText) {
-        outline += '  '.repeat(depth) + '- ' + nodeText + '\n';
+  private getNodeIdentifier(node: Element): string | null {
+    // Try to get a unique identifier for the node
+    const textContent = node.querySelector('text:not(.expand-symbol)')?.textContent?.trim();
+    return textContent || null;
+  }
+
+  private simulateClick(element: Element): void {
+    // Create and dispatch mouse events for SVG elements
+    const mousedownEvent = new MouseEvent('mousedown', {
+      view: window,
+      bubbles: true,
+      cancelable: true,
+      buttons: 1
+    });
+    
+    const mouseupEvent = new MouseEvent('mouseup', {
+      view: window,
+      bubbles: true,
+      cancelable: true,
+      buttons: 0
+    });
+    
+    const clickEvent = new MouseEvent('click', {
+      view: window,
+      bubbles: true,
+      cancelable: true
+    });
+    
+    element.dispatchEvent(mousedownEvent);
+    element.dispatchEvent(mouseupEvent);
+    element.dispatchEvent(clickEvent);
+    
+    // Also try pointer events which some frameworks prefer
+    const pointerEvent = new PointerEvent('pointerup', {
+      view: window,
+      bubbles: true,
+      cancelable: true
+    });
+    
+    element.dispatchEvent(pointerEvent);
+  }
+
+  private exportToOutline(): void {
+    console.log('📋 Exporting mind map...');
+    
+    let outline = 'Mind Map Export\n' + '='.repeat(50) + '\n';
+    
+    // Gather all text content from nodes
+    const processedTexts = new Set<string>();
+    const nodes = document.querySelectorAll('g.node');
+    
+    nodes.forEach((node, index) => {
+      const textElements = node.querySelectorAll('text');
+      textElements.forEach(text => {
+        const content = text.textContent?.trim();
+        // Skip expand/collapse symbols
+        if (content && content !== '>' && content !== '<' && !processedTexts.has(content)) {
+          processedTexts.add(content);
+          
+          // Try to determine depth based on transform or position
+          const depth = this.estimateNodeDepth(node);
+          outline += '  '.repeat(depth) + '• ' + content + '\n';
+        }
+      });
+    });
+    
+    console.log('Export content:', outline);
+    this.showExportModal(outline);
+  }
+
+  private estimateNodeDepth(node: Element): number {
+    // Simple heuristic: count parent g elements
+    let depth = 0;
+    let current = node.parentElement;
+    
+    while (current && depth < 10) {
+      if (current.tagName.toLowerCase() === 'g') {
+        depth++;
       }
-
-      // Find child nodes
-      const childSelectors = [
-        ':scope > .node-children > .node-child',
-        ':scope > [class*="children"] > [class*="child"]',
-        ':scope > ul > li'
-      ];
-
-      for (const selector of childSelectors) {
-        const children = element.querySelectorAll(selector);
-        children.forEach(child => walk(child, depth + 1));
-      }
-    };
-
-    // Find root nodes
-    const rootSelectors = [
-      '.mind-map-root',
-      '.root-node',
-      '[class*="root-node"]',
-      '.mind-map-container > .node'
-    ];
-
-    for (const selector of rootSelectors) {
-      const roots = this.container.querySelectorAll(selector);
-      if (roots.length > 0) {
-        roots.forEach(root => walk(root, 0));
-        break;
-      }
+      current = current.parentElement;
     }
-
-    return outline || 'Could not extract mind map structure';
+    
+    return Math.max(0, depth - 2); // Adjust for SVG structure
   }
 
   private showExportModal(content: string): void {
     const modal = document.createElement('div');
     modal.innerHTML = `
-      <div id="nlm-export-modal" style="
+      <div style="
         position: fixed;
         top: 0;
         left: 0;
@@ -390,29 +450,46 @@ class NotebookLMExpander {
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 10000;
+        z-index: 10001;
       ">
         <div style="
-          background: white;
-          padding: 20px;
-          border-radius: 8px;
+          background: ${this.isDarkTheme ? '#1e1e1e' : 'white'};
+          color: ${this.isDarkTheme ? 'white' : 'black'};
+          padding: 24px;
+          border-radius: 12px;
           max-width: 600px;
           max-height: 80vh;
           overflow: auto;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.2);
         ">
-          <h3>Mind Map Export</h3>
+          <h3 style="margin-top: 0;">Mind Map Export</h3>
           <pre style="
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 4px;
+            background: ${this.isDarkTheme ? '#2d2d2d' : '#f5f5f5'};
+            padding: 16px;
+            border-radius: 8px;
             font-family: monospace;
             font-size: 12px;
             white-space: pre-wrap;
+            max-height: 400px;
+            overflow: auto;
           ">${content}</pre>
-          <div style="margin-top: 15px; display: flex; gap: 10px;">
-            <button id="nlm-copy-export">Copy to Clipboard</button>
-            <button id="nlm-close-export">Close</button>
+          <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="nlm-copy-export" style="
+              padding: 8px 16px;
+              border-radius: 6px;
+              border: 1px solid ${this.isDarkTheme ? '#555' : '#ddd'};
+              background: ${this.isDarkTheme ? '#333' : 'white'};
+              color: ${this.isDarkTheme ? 'white' : 'black'};
+              cursor: pointer;
+            ">Copy to Clipboard</button>
+            <button id="nlm-close-export" style="
+              padding: 8px 16px;
+              border-radius: 6px;
+              border: none;
+              background: #1a73e8;
+              color: white;
+              cursor: pointer;
+            ">Close</button>
           </div>
         </div>
       </div>
@@ -420,53 +497,76 @@ class NotebookLMExpander {
 
     document.body.appendChild(modal);
 
-    document.getElementById('nlm-copy-export')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(content);
-      alert('Copied to clipboard!');
+    modal.querySelector('#nlm-copy-export')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(content).then(() => {
+        const button = modal.querySelector('#nlm-copy-export') as HTMLElement;
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+          button.textContent = 'Copy to Clipboard';
+        }, 2000);
+      });
     });
 
-    document.getElementById('nlm-close-export')?.addEventListener('click', () => {
+    modal.querySelector('#nlm-close-export')?.addEventListener('click', () => {
       modal.remove();
     });
+
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal.firstElementChild?.parentElement) {
+        modal.remove();
+      }
+    });
+  }
+
+  private toggleTheme(): void {
+    this.isDarkTheme = !this.isDarkTheme;
+    
+    if (this.toolbar) {
+      this.toolbar.classList.toggle('dark', this.isDarkTheme);
+      const themeButton = this.toolbar.querySelector('#nlm-theme-toggle');
+      if (themeButton) {
+        themeButton.textContent = this.isDarkTheme ? '☀️ Theme' : '🌙 Theme';
+      }
+    }
+    
+    if (chrome?.storage?.sync) {
+      chrome.storage.sync.set({ isDarkTheme: this.isDarkTheme });
+    }
   }
 
   private registerHotkeys(): void {
     document.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (!e.ctrlKey || !e.shiftKey) return;
-
-      if (e.key === 'E' || e.key === 'e') {
-        e.preventDefault();
-        this.expandAll();
-      } else if (e.key === 'C' || e.key === 'c') {
-        e.preventDefault();
-        this.collapseAll();
+      if (!this.settings.hotkeysEnabled) return;
+      
+      if (e.altKey && e.shiftKey) {
+        const key = e.key.toLowerCase();
+        
+        if (key === HOTKEYS.expand.key) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.expandAll();
+          return false;
+        } else if (key === HOTKEYS.collapse.key) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.collapseAll();
+          return false;
+        } else if (key === HOTKEYS.exportOutline.key) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          this.exportToOutline();
+          return false;
+        }
       }
-    });
+    }, true);
   }
 
-  private async getSettings(): Promise<{ autoExpand: boolean }> {
-    return new Promise((resolve) => {
-      // Check if chrome.storage is available
-      if (!chrome?.storage?.sync) {
-        console.warn('Chrome storage not available, using defaults');
-        resolve({ autoExpand: true });
-        return;
-      }
-
-      try {
-        chrome.storage.sync.get(['autoExpand'], (result) => {
-          if (chrome.runtime.lastError) {
-            console.warn('Storage error:', chrome.runtime.lastError);
-            resolve({ autoExpand: true }); // Default value
-          } else {
-            resolve({ autoExpand: result.autoExpand !== false });
-          }
-        });
-      } catch (error) {
-        console.warn('Storage access error:', error);
-        resolve({ autoExpand: true }); // Default value
-      }
-    });
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private retry(): void {
@@ -476,13 +576,9 @@ class NotebookLMExpander {
       setTimeout(() => this.init(), RETRY_DELAY * this.retryCount);
     }
   }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 }
 
-// Initialize only once
+// Initialize
 declare global {
   interface Window {
     notebookLMExpander?: NotebookLMExpander;

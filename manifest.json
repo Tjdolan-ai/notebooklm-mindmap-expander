@@ -1,52 +1,58 @@
 {
   "manifest_version": 3,
-  "name": "NotebookLM Mind Map Expander",
-  "version": "1.0.0",
-  "description": "Automatically expand and manage mind maps in Google NotebookLM",
+  "name": "NotebookLM Mind Map Expander Pro",
+  "version": "1.2.0",
+  "description": "Expand mind maps with one click. Export to outline. Search nodes. Built with excellence.",
   "author": "Visionary42",
+  
   "permissions": [
     "storage",
     "activeTab"
   ],
-  "host_permissions": [
-    "https://notebooklm.google.com/*"
-  ],
+  
   "background": {
-    "service_worker": "dist/background.js",
-    "type": "module"
+    "service_worker": "dist/background.js"
   },
+  
   "content_scripts": [
     {
-      "matches": [
-        "https://notebooklm.google.com/*"
-      ],
-      "js": [
-        "dist/expander.js"
-      ],
-      "css": [
-        "injected_styles.css"
-      ],
+      "matches": ["https://notebooklm.google.com/*"],
+      "js": ["dist/expander.js"],
       "run_at": "document_idle"
     }
   ],
-  "action": {
-    "default_popup": "popup.html"
-  },
-  "options_page": "options.html",
+  
   "commands": {
-    "expand-all": {
+    "expand-nodes": {
       "suggested_key": {
-        "default": "Ctrl+Shift+E",
-        "mac": "Command+Shift+E"
+        "default": "Alt+Shift+E",
+        "mac": "Alt+Shift+E"
       },
       "description": "Expand all mind map nodes"
     },
-    "collapse-all": {
+    "collapse-nodes": {
       "suggested_key": {
-        "default": "Ctrl+Shift+C",
-        "mac": "Command+Shift+C"
+        "default": "Alt+Shift+C",
+        "mac": "Alt+Shift+C"
       },
       "description": "Collapse all mind map nodes"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+O",
+        "mac": "Alt+Shift+O"
+      },
+      "description": "Export mind map to outline"
     }
-  }
+  },
+  
+  "action": {
+    "default_popup": "popup.html"
+  },
+  
+  "options_page": "options.html",
+  
+  "host_permissions": [
+    "https://notebooklm.google.com/*"
+  ]
 }
