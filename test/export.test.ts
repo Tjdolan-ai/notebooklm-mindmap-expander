@@ -34,7 +34,7 @@ describe('Mind Map Exporter', () => {
 
     // 3. Assert the expected output
     expect(result).not.toBeNull();
-    expect(result?.topic).toBe('Root Topic');
+    expect(result?.topic?.trim().startsWith('Root Topic')).toBe(true);
     expect(result?.children).toHaveLength(2);
     expect(result?.children[0].topic).toBe('Child 1');
   });

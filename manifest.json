@@ -1,48 +1,50 @@
 {
   "manifest_version": 3,
-  "name": "NotebookLM Mind Map Expander Pro",
-  "version": "0.2.0",
-  "description": "Enhances NotebookLM mind maps with advanced controls like partial expansion, export, search, and themes.",
-  "icons": {
-    "128": "icon128.png"
-  },
-  "permissions": ["storage"],
-  "host_permissions": ["https://notebooklm.google.com/*"],
+  "name": "NotebookLM Mind Map Expander",
+  "version": "1.0.0",
+  "description": "Automatically expand and manage mind maps in Google NotebookLM",
+  "author": "Visionary42",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://notebooklm.google.com/*"
+  ],
   "background": {
-    "service_worker": "dist/background.js"
+    "service_worker": "dist/background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://notebooklm.google.com/*"],
-      "js": ["dist/expander.js"],
-      "css": ["injected_styles.css"],
+      "matches": [
+        "https://notebooklm.google.com/*"
+      ],
+      "js": [
+        "dist/expander.js"
+      ],
+      "css": [
+        "injected_styles.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "Mind Map Expander Pro",
-    "default_popup": "options.html"
+    "default_popup": "popup.html"
   },
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": false
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["welcome.html", "welcome.css", "welcome.js", "options.html", "options.js", "injected_styles.css"],
-      "matches": ["https://notebooklm.google.com/*"]
-    }
-  ],
+  "options_page": "options.html",
   "commands": {
-    "expand-mindmap": {
+    "expand-all": {
       "suggested_key": {
-        "default": "Ctrl+Shift+E"
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
       },
-      "description": "Expand mind map to default depth"
+      "description": "Expand all mind map nodes"
     },
-    "collapse-mindmap": {
+    "collapse-all": {
       "suggested_key": {
-        "default": "Ctrl+Shift+C"
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
       },
       "description": "Collapse all mind map nodes"
     }

@@ -5,6 +5,7 @@
  * Returns the container element or null if not found.
  */
 
+
 const CONTAINER_SELECTORS = [
   'div[class^="MindMapViewer"]',
   '[data-test-id="mind-map-container"]',
@@ -16,6 +17,8 @@ const CONTAINER_SELECTORS = [
   'section.mindmap',
   'div[class*="mindmap"]',
   'div[class*="NodeTree"]',
+  'mindmap',
+  'mindmap svg'
 ];
 
 /**
@@ -24,24 +27,21 @@ const CONTAINER_SELECTORS = [
  * @param {number} intervalMs - Polling interval (default 200ms)
  * @returns {Promise<HTMLElement|null>} The container or null if not found
  */
-export async function waitForContainer(timeoutMs = 10000, intervalMs = 200): Promise<HTMLElement | null> {
+export async function waitForContainer(
+  timeoutMs = 10_000,
+  intervalMs = 200
+): Promise<Element | null> {
   const start = Date.now();
-  let warned = false;
   while (Date.now() - start < timeoutMs) {
-    for (const selector of CONTAINER_SELECTORS) {
+    for (const sel of CONTAINER_SELECTORS) {
       try {
-        const el = document.querySelector<HTMLElement>(selector);
-        if (el) return el;
-      } catch (e) {
-        // Ignore selector errors
-      }
+        const el = document.querySelector(sel);
+        if (el) return el;                     // success
+      } catch { /* ignore invalid selector */ }
     }
     await new Promise(res => setTimeout(res, intervalMs));
   }
-  if (!warned) {
-    console.warn('[elementDetector] Mind map container not found after 10s.');
-    warned = true;
-  }
+  console.warn('[elementDetector] Mind map container not found after 10 s.');
   return null;
 }
 

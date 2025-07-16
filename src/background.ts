@@ -14,8 +14,14 @@ chrome.runtime.onInstalled.addListener((details) => {
  */
 chrome.commands.onCommand.addListener((command, tab) => {
   if (!tab?.id) return;
+
   chrome.storage.sync.get(['hotkeysEnabled'], (result) => {
     if (result.hotkeysEnabled === false) return;
-    chrome.tabs.sendMessage(tab.id!, { action: command });
+
+    // Send message to content script with error handling
+    chrome.tabs.sendMessage(tab.id!, { action: command })
+      .catch((error) => {
+        console.log('Background script: Content script not ready or tab closed:', error);
+      });
   });
 });
