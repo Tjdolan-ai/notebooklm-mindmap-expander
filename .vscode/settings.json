@@ -1,0 +1,12 @@
+{
+    "editor.bracketPairColorization.enabled": false,
+    "editor.columnSelection": false,
+    "workbench.iconTheme": "vs-minimal",
+    "workbench.editor.autoLockGroups": {
+        "default": true
+    },
+    "workbench.editor.alwaysShowEditorActions": true,
+    "workbench.settings.openDefaultSettings": true,
+    "ipynb.experimental.serialization": false,
+    "windowsaistudio.enableRemoteFine-tuningAndInference": true
+}
