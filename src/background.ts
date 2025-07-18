@@ -25,3 +25,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
       });
   });
 });
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'export') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, request, (response) => {
+          sendResponse(response);
+        });
+      }
+    });
+    return true; // Indicates that the response is sent asynchronously
+  } else if (request.action === 'exportProgress') {
+    // Forward progress to popup
+    chrome.runtime.sendMessage(request);
+  }
+});

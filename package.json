@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run clean && npm run build -- --watch",
     "build": "npm run clean && npm run build:ts",
-    "build:ts": "esbuild src/*.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020",
+    "build:ts": "esbuild src/background.ts src/content.ts src/expander.ts src/options.ts src/popup.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020",
     "clean": "rimraf dist",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -48,5 +48,11 @@
   "bugs": {
     "url": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander/issues"
   },
-  "homepage": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander#readme"
+  "homepage": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander#readme",
+  "dependencies": {
+    "@types/jspdf": "^2.0.0",
+    "@types/turndown": "^5.0.5",
+    "jspdf": "^3.0.1",
+    "turndown": "^7.2.0"
+  }
 }

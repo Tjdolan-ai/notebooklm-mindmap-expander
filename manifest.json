@@ -17,7 +17,7 @@
   "content_scripts": [
     {
       "matches": ["https://notebooklm.google.com/*"],
-      "js": ["dist/expander.js"],
+      "js": ["dist/expander.js", "dist/content.js"],
       "run_at": "document_idle"
     }
   ],

@@ -2,11 +2,12 @@ const autoExpandCheckbox = document.getElementById('auto-expand') as HTMLInputEl
 const hotkeysEnabledCheckbox = document.getElementById('hotkeys-enabled') as HTMLInputElement;
 const defaultDepthSelect = document.getElementById('default-depth') as HTMLSelectElement;
 const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
+const defaultExportFormatSelect = document.getElementById('default-export-format') as HTMLSelectElement;
 const optionsForm = document.getElementById('options-form') as HTMLFormElement;
 const statusDiv = document.getElementById('status');
 
 // Load saved options
-chrome.storage.sync.get(['autoExpand', 'hotkeysEnabled', 'defaultDepth', 'theme'], (result) => {
+chrome.storage.sync.get(['autoExpand', 'hotkeysEnabled', 'defaultDepth', 'theme', 'defaultExportFormat'], (result) => {
   autoExpandCheckbox.checked = result.autoExpand !== false; // default to true
   hotkeysEnabledCheckbox.checked = result.hotkeysEnabled !== false; // default to true
   if (defaultDepthSelect) {
@@ -15,6 +16,9 @@ chrome.storage.sync.get(['autoExpand', 'hotkeysEnabled', 'defaultDepth', 'theme'
   }
   if (themeSelect) {
     themeSelect.value = result.theme || 'auto';
+  }
+  if (defaultExportFormatSelect) {
+    defaultExportFormatSelect.value = result.defaultExportFormat || 'pdf';
   }
 });
 
@@ -25,8 +29,9 @@ optionsForm.addEventListener('submit', (event) => {
   const hotkeysEnabled = hotkeysEnabledCheckbox.checked;
   const defaultDepth = parseInt(defaultDepthSelect.value, 10);
   const theme = themeSelect.value;
+  const defaultExportFormat = defaultExportFormatSelect.value;
 
-  chrome.storage.sync.set({ autoExpand, hotkeysEnabled, defaultDepth, theme }, () => {
+  chrome.storage.sync.set({ autoExpand, hotkeysEnabled, defaultDepth, theme, defaultExportFormat }, () => {
     if (statusDiv) {
       statusDiv.textContent = 'Options saved.';
       setTimeout(() => {
