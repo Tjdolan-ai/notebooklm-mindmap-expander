@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>NotebookLM Citations</title>
+  <link rel="stylesheet" href="injected_styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Citation Manager</h1>
+    <div id="citation-list"></div>
+    <div class="button-group">
+      <button id="generate-bibliography">Generate Bibliography</button>
+      <button id="export-bibtex">Export to BibTeX</button>
+    </div>
+    <div id="bibliography"></div>
+    <div class="manual-entry">
+      <h2>Manual Entry</h2>
+      <form id="manual-entry-form">
+        <input type="text" id="title" placeholder="Title" required>
+        <input type="text" id="author" placeholder="Author (e.g., Doe, John)">
+        <input type="text" id="url" placeholder="URL">
+        <button type="submit">Add Source</button>
+      </form>
+    </div>
+  </div>
+  <script src="dist/sidepanel.js"></script>
+</body>
+</html>

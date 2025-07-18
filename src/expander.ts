@@ -37,6 +37,7 @@ class NotebookLMExpander {
     this.registerHotkeys();
     this.setupMutationObserver();
     this.checkForMindMap();
+    this.injectCitationButtons();
   }
 
   private initializeAIInsights(): void {
@@ -260,6 +261,9 @@ class NotebookLMExpander {
       <button class="nlm-toolbar-button" id="nlm-theme-toggle">
         ${this.isDarkTheme ? '☀️' : '🌙'} Theme
       </button>
+      <button class="nlm-toolbar-button" id="nlm-citations">
+        📚 Citations
+      </button>
     `;
 
     if (this.isDarkTheme) {
@@ -274,6 +278,38 @@ class NotebookLMExpander {
     this.toolbar.querySelector('#nlm-export')?.addEventListener('click', () => this.exportToOutline());
     this.toolbar.querySelector('#nlm-ai-insights')?.addEventListener('click', () => this.showAIInsights());
     this.toolbar.querySelector('#nlm-theme-toggle')?.addEventListener('click', () => this.toggleTheme());
+    this.toolbar.querySelector('#nlm-citations')?.addEventListener('click', () => this.toggleSidePanel());
+  }
+
+  private toggleSidePanel(): void {
+    chrome.runtime.sendMessage({ action: 'toggle-side-panel' });
+  }
+
+  private injectCitationButtons(): void {
+    const sourceElements = document.querySelectorAll('.source-list .source-item'); // This selector will need to be adjusted
+    sourceElements.forEach(element => {
+      const button = document.createElement('button');
+      button.textContent = 'Copy Citation';
+      button.className = 'copy-citation-button';
+      button.addEventListener('click', () => {
+        const title = (element.querySelector('.title-selector') as HTMLElement)?.innerText;
+        const author = (element.querySelector('.author-selector') as HTMLElement)?.innerText;
+        const url = (element.querySelector('.url-selector') as HTMLElement)?.innerText;
+
+        const metadata = {
+          title,
+          author: author ? [{ family: author.split(',')[0].trim(), given: author.split(',')[1]?.trim() || '' }] : [],
+          URL: url,
+          accessed: {
+            'date-parts': [[new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()]],
+          },
+        };
+
+        // Send message to background script to generate and copy citation
+        chrome.runtime.sendMessage({ action: 'copy-citation', metadata });
+      });
+      element.appendChild(button);
+    });
   }
 
   private expandAll(): void {

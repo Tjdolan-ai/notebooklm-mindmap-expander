@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run clean && npm run build -- --watch",
     "build": "npm run clean && npm run build:ts",
-    "build:ts": "esbuild src/*.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020",
+    "build:ts": "esbuild src/*.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020 && esbuild src/sidepanel.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020",
     "clean": "rimraf dist",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -24,9 +24,15 @@
   ],
   "author": "Visionary42",
   "license": "MIT",
+  "dependencies": {
+    "citation-js": "^0.7.8",
+    "file-saver": "^2.0.5"
+  },
   "devDependencies": {
+    "patch-package": "^8.0.0",
     "@eslint/js": "^9.31.0",
     "@types/chrome": "^0.0.254",
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",

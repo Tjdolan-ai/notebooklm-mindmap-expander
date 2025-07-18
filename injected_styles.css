@@ -106,3 +106,23 @@
 #nlm-exporter-modal.dark pre {
     background: #222;
 }
+
+/* Side Panel Styles */
+.container {
+  padding: 10px;
+  font-family: sans-serif;
+}
+
+.button-group {
+  margin-top: 10px;
+}
+
+#bibliography {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ccc;
+}
+
+.manual-entry {
+  margin-top: 20px;
+}

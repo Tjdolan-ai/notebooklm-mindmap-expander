@@ -25,3 +25,22 @@ chrome.commands.onCommand.addListener((command, tab) => {
       });
   });
 });
+
+import { CitationManager } from './citation';
+
+const citationManager = new CitationManager();
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message.action === 'toggle-side-panel') {
+    chrome.sidePanel.open({ windowId: sender.tab?.windowId });
+  } else if (message.action === 'copy-citation') {
+    const citation = citationManager.generateCitation(message.metadata, 'apa');
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab!.id! },
+      func: (citation) => {
+        navigator.clipboard.writeText(citation);
+      },
+      args: [citation],
+    });
+  }
+});
