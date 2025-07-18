@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Advanced Filters</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+        }
+
+        .filter-group {
+            margin-bottom: 16px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button.primary {
+            background: #1a73e8;
+            color: white;
+            border-color: #1a73e8;
+        }
+    </style>
+</head>
+<body>
+    <h2>Advanced Filters</h2>
+
+    <div class="filter-group">
+        <label for="date-range">Date Range</label>
+        <select id="date-range">
+            <option value="all">All time</option>
+            <option value="last-24h">Last 24 hours</option>
+            <option value="last-7d">Last 7 days</option>
+            <option value="last-30d">Last 30 days</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="source-type">Source Type</label>
+        <select id="source-type">
+            <option value="all">All types</option>
+            <option value="note">Note</option>
+            <option value="source">Source</option>
+            <option value="mindmap">Mind Map</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="content-length">Content Length</label>
+        <input type="range" id="content-length" min="0" max="10000" value="0">
+        <span id="content-length-value">0</span>
+    </div>
+
+    <div class="filter-group">
+        <label for="tags">Tags (comma-separated)</label>
+        <input type="text" id="tags">
+    </div>
+
+    <div class="button-group">
+        <button id="save-preset-btn">Save as Preset</button>
+        <button id="apply-filters-btn" class="primary">Apply Filters</button>
+    </div>
+</body>
+</html>

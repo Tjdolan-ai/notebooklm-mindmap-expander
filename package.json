@@ -48,5 +48,8 @@
   "bugs": {
     "url": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander/issues"
   },
-  "homepage": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander#readme"
+  "homepage": "https://github.com/Tjdolan-ai/notebooklm-mindmap-expander#readme",
+  "dependencies": {
+    "fuse.js": "^7.1.0"
+  }
 }

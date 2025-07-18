@@ -23,6 +23,20 @@
   ],
   
   "commands": {
+    "open-search": {
+      "suggested_key": {
+        "default": "Ctrl+K",
+        "mac": "Command+K"
+      },
+      "description": "Open search"
+    },
+    "open-advanced-filters": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Open advanced filters"
+    },
     "expand-nodes": {
       "suggested_key": {
         "default": "Alt+Shift+E",
@@ -42,7 +56,7 @@
         "default": "Alt+Shift+O",
         "mac": "Alt+Shift+O"
       },
-      "description": "Export mind map to outline"
+      "description": "Open popup"
     }
   },
   

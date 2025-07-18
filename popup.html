@@ -88,6 +88,38 @@
             text-align: center;
             color: #666;
         }
+
+        .search-container {
+            display: flex;
+            margin-bottom: 16px;
+        }
+
+        #search-input {
+            flex-grow: 1;
+            border: 1px solid #dadce0;
+            border-radius: 4px 0 0 4px;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        #advanced-filter-btn {
+            border: 1px solid #dadce0;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+            background: white;
+            cursor: pointer;
+            padding: 0 12px;
+        }
+
+        .result-actions {
+            margin-top: 8px;
+        }
+
+        .result-actions button {
+            margin-right: 8px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
     </style>
 </head>
 
@@ -97,19 +129,30 @@
     </div>
 
     <div class="content">
-        <div class="status" id="status">
-            Checking status...
+        <div class="search-container">
+            <input type="search" id="search-input" placeholder="Search notes...">
+            <button id="advanced-filter-btn" title="Advanced Filters">⚙️</button>
         </div>
+
+        <div id="search-results"></div>
 
         <div class="shortcuts">
             <h3 style="margin: 0 0 8px 0; font-size: 14px;">Keyboard Shortcuts:</h3>
             <div class="shortcut">
+                <span>Search</span>
+                <kbd>Ctrl+K</kbd>
+            </div>
+            <div class="shortcut">
+                <span>Advanced Filters</span>
+                <kbd>Ctrl+Shift+F</kbd>
+            </div>
+            <div class="shortcut">
                 <span>Expand All</span>
-                <kbd>Ctrl+Shift+E</kbd>
+                <kbd>Alt+Shift+E</kbd>
             </div>
             <div class="shortcut">
                 <span>Collapse All</span>
-                <kbd>Ctrl+Shift+C</kbd>
+                <kbd>Alt+Shift+C</kbd>
             </div>
         </div>
 
