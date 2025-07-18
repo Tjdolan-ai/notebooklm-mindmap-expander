@@ -1,5 +1,11 @@
 # AGENTS.md - NotebookLM Extension Development Protocol
+# 🚨 CRITICAL: This project uses pnpm, NOT npm
 
+## ⚠️ WRONG COMMANDS (Never use these):
+```bash
+npm install [package]    # ❌ Creates package-lock.json conflicts
+npm run build           # ❌ Wrong package manager
+npm audit              # ❌ Different dependency resolution
 > **Mission**: Build Chrome extensions with excellence, integrity, and user-first design principles.
 
 ## 🎯 **Core Development Philosophy**
