@@ -4,8 +4,8 @@
   "description": "Chrome extension to auto-expand NotebookLM mind maps",
   "main": "dist/background.js",
   "scripts": {
-    "dev": "npm run clean && npm run build -- --watch",
-    "build": "npm run clean && npm run build:ts",
+    "dev": "pnpm clean && pnpm build -- --watch",
+    "build": "pnpm clean && pnpm build:ts",
     "build:ts": "esbuild src/*.ts --bundle --outdir=dist --format=iife --platform=browser --target=es2020",
     "clean": "rimraf dist",
     "test": "vitest",

@@ -5,6 +5,8 @@
  */
 
 import { AIInsightsAnalyzer } from './aiInsights';
+import { FloatingPanel } from './ui/floatingPanel';
+import { MindMapNode } from './exporting/exporters';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -20,10 +22,10 @@ class NotebookLMExpander {
   private observer: MutationObserver | null = null;
   private isDarkTheme = false;
   private retryCount = 0;
-  private toolbar: HTMLElement | null = null;
   private settings = { autoExpand: true, hotkeysEnabled: true };
   private expandedNodes = new Set<string>();
   private aiInsightsAnalyzer: AIInsightsAnalyzer | null = null;
+  private floatingPanel: FloatingPanel | null = null;
 
   constructor() {
     this.init();
@@ -150,8 +152,8 @@ class NotebookLMExpander {
     if (nodes.length > 0) {
       console.log(`✅ Found ${nodes.length} nodes`);
       
-      if (!this.toolbar) {
-        this.injectToolbar(container);
+      if (!this.floatingPanel) {
+        this.floatingPanel = new FloatingPanel(() => this.getMindMapData());
       }
       
       if (this.settings.autoExpand) {
@@ -174,106 +176,6 @@ class NotebookLMExpander {
       }
     }
     return document.querySelectorAll('.null-selector');
-  }
-
-  private injectToolbar(_container: Element): void {
-    if (this.toolbar) return;
-
-    this.toolbar = document.createElement('div');
-    this.toolbar.id = 'nlm-expander-toolbar';
-    this.toolbar.innerHTML = `
-      <style>
-        #nlm-expander-toolbar {
-          position: fixed;
-          top: 80px;
-          right: 20px;
-          background: white;
-          border: 1px solid #e0e0e0;
-          border-radius: 8px;
-          padding: 8px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          z-index: 10000;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        
-        #nlm-expander-toolbar.dark {
-          background: #1e1e1e;
-          border-color: #444;
-          color: white;
-        }
-        
-        .nlm-toolbar-header {
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 4px;
-          opacity: 0.8;
-        }
-        
-        .nlm-toolbar-button {
-          background: #f5f5f5;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          padding: 6px 12px;
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
-        }
-        
-        .nlm-toolbar-button:hover {
-          background: #e8e8e8;
-          transform: translateY(-1px);
-        }
-        
-        .dark .nlm-toolbar-button {
-          background: #333;
-          border-color: #555;
-          color: white;
-        }
-        
-        .dark .nlm-toolbar-button:hover {
-          background: #444;
-        }
-        
-        .nlm-hotkey {
-          opacity: 0.6;
-          font-size: 11px;
-          margin-left: 8px;
-        }
-      </style>
-      <div class="nlm-toolbar-header">Mind Map Tools</div>
-      <button class="nlm-toolbar-button" id="nlm-expand-all">
-        🌳 Expand All <span class="nlm-hotkey">Alt+Shift+E</span>
-      </button>
-      <button class="nlm-toolbar-button" id="nlm-collapse-all">
-        🌲 Collapse All <span class="nlm-hotkey">Alt+Shift+C</span>
-      </button>
-      <button class="nlm-toolbar-button" id="nlm-export">
-        📋 Export <span class="nlm-hotkey">Alt+Shift+O</span>
-      </button>
-      <button class="nlm-toolbar-button" id="nlm-ai-insights">
-        🧠 AI Insights <span class="nlm-hotkey">Alt+Shift+I</span>
-      </button>
-      <button class="nlm-toolbar-button" id="nlm-theme-toggle">
-        ${this.isDarkTheme ? '☀️' : '🌙'} Theme
-      </button>
-    `;
-
-    if (this.isDarkTheme) {
-      this.toolbar.classList.add('dark');
-    }
-
-    document.body.appendChild(this.toolbar);
-
-    // Add event listeners
-    this.toolbar.querySelector('#nlm-expand-all')?.addEventListener('click', () => this.expandAll());
-    this.toolbar.querySelector('#nlm-collapse-all')?.addEventListener('click', () => this.collapseAll());
-    this.toolbar.querySelector('#nlm-export')?.addEventListener('click', () => this.exportToOutline());
-    this.toolbar.querySelector('#nlm-ai-insights')?.addEventListener('click', () => this.showAIInsights());
-    this.toolbar.querySelector('#nlm-theme-toggle')?.addEventListener('click', () => this.toggleTheme());
   }
 
   private expandAll(): void {
@@ -407,32 +309,46 @@ class NotebookLMExpander {
     element.dispatchEvent(pointerEvent);
   }
 
-  private exportToOutline(): void {
-    console.log('📋 Exporting mind map...');
-    
-    let outline = 'Mind Map Export\n' + '='.repeat(50) + '\n';
-    
-    // Gather all text content from nodes
-    const processedTexts = new Set<string>();
+  private getMindMapData(): MindMapNode[] {
     const nodes = document.querySelectorAll('g.node');
-    
-    nodes.forEach((node, _index) => {
-      const textElements = node.querySelectorAll('text');
-      textElements.forEach(text => {
-        const content = text.textContent?.trim();
-        // Skip expand/collapse symbols
-        if (content && content !== '>' && content !== '<' && !processedTexts.has(content)) {
-          processedTexts.add(content);
-          
-          // Try to determine depth based on transform or position
-          const depth = this.estimateNodeDepth(node);
-          outline += '  '.repeat(depth) + '• ' + content + '\n';
-        }
-      });
+    const rootNodes: MindMapNode[] = [];
+    const nodeMap = new Map<string, MindMapNode>();
+
+    nodes.forEach((nodeElement, i) => {
+      const textElement = nodeElement.querySelector('text:not(.expand-symbol)');
+      const text = textElement?.textContent?.trim();
+      if (!text) return;
+
+      const id = this.getNodeIdentifier(nodeElement) || `node-${i}`;
+      const depth = this.estimateNodeDepth(nodeElement);
+      const mindMapNode: MindMapNode = { id, text, children: [], depth };
+
+      nodeMap.set(id, mindMapNode);
     });
-    
-    console.log('Export content:', outline);
-    this.showExportModal(outline);
+
+    nodes.forEach((nodeElement) => {
+        const id = this.getNodeIdentifier(nodeElement);
+        if (!id) return;
+
+        const parentElement = nodeElement.parentElement?.closest('g.node');
+        if (parentElement) {
+            const parentId = this.getNodeIdentifier(parentElement);
+            if (parentId && nodeMap.has(parentId) && nodeMap.has(id)) {
+                const parentNode = nodeMap.get(parentId);
+                const childNode = nodeMap.get(id);
+                if(parentNode && childNode) {
+                    parentNode.children.push(childNode);
+                }
+            }
+        } else {
+            const node = nodeMap.get(id)
+            if(node) {
+                rootNodes.push(node);
+            }
+        }
+    });
+
+    return rootNodes;
   }
 
   private estimateNodeDepth(node: Element): number {
@@ -450,98 +366,8 @@ class NotebookLMExpander {
     return Math.max(0, depth - 2); // Adjust for SVG structure
   }
 
-  private showExportModal(content: string): void {
-    const modal = document.createElement('div');
-    modal.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10001;
-      ">
-        <div style="
-          background: ${this.isDarkTheme ? '#1e1e1e' : 'white'};
-          color: ${this.isDarkTheme ? 'white' : 'black'};
-          padding: 24px;
-          border-radius: 12px;
-          max-width: 600px;
-          max-height: 80vh;
-          overflow: auto;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        ">
-          <h3 style="margin-top: 0;">Mind Map Export</h3>
-          <pre style="
-            background: ${this.isDarkTheme ? '#2d2d2d' : '#f5f5f5'};
-            padding: 16px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            max-height: 400px;
-            overflow: auto;
-          ">${content}</pre>
-          <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
-            <button id="nlm-copy-export" style="
-              padding: 8px 16px;
-              border-radius: 6px;
-              border: 1px solid ${this.isDarkTheme ? '#555' : '#ddd'};
-              background: ${this.isDarkTheme ? '#333' : 'white'};
-              color: ${this.isDarkTheme ? 'white' : 'black'};
-              cursor: pointer;
-            ">Copy to Clipboard</button>
-            <button id="nlm-close-export" style="
-              padding: 8px 16px;
-              border-radius: 6px;
-              border: none;
-              background: #1a73e8;
-              color: white;
-              cursor: pointer;
-            ">Close</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    modal.querySelector('#nlm-copy-export')?.addEventListener('click', () => {
-      navigator.clipboard.writeText(content).then(() => {
-        const button = modal.querySelector('#nlm-copy-export') as HTMLElement;
-        button.textContent = 'Copied!';
-        setTimeout(() => {
-          button.textContent = 'Copy to Clipboard';
-        }, 2000);
-      });
-    });
-
-    modal.querySelector('#nlm-close-export')?.addEventListener('click', () => {
-      modal.remove();
-    });
-
-    // Close on background click
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal.firstElementChild?.parentElement) {
-        modal.remove();
-      }
-    });
-  }
-
   private toggleTheme(): void {
     this.isDarkTheme = !this.isDarkTheme;
-    
-    if (this.toolbar) {
-      this.toolbar.classList.toggle('dark', this.isDarkTheme);
-      const themeButton = this.toolbar.querySelector('#nlm-theme-toggle');
-      if (themeButton) {
-        themeButton.textContent = this.isDarkTheme ? '☀️ Theme' : '🌙 Theme';
-      }
-    }
     
     // Update AI insights analyzer theme
     if (this.aiInsightsAnalyzer) {
@@ -571,12 +397,6 @@ class NotebookLMExpander {
           e.stopPropagation();
           e.stopImmediatePropagation();
           this.collapseAll();
-          return false;
-        } else if (key === HOTKEYS.exportOutline.key) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          this.exportToOutline();
           return false;
         } else if (key === HOTKEYS.aiInsights.key) {
           e.preventDefault();
