@@ -45,10 +45,20 @@ class NotebookLMExpander {
 
   private async loadSettings(): Promise<void> {
     try {
-      const stored = await this.getStorageValues(['autoExpand', 'hotkeysEnabled', 'isDarkTheme']);
+      const stored = await this.getStorageValues(['autoExpand', 'hotkeysEnabled', 'isDarkTheme', 'theme']);
       this.settings.autoExpand = stored.autoExpand !== false;
       this.settings.hotkeysEnabled = stored.hotkeysEnabled !== false;
-      this.isDarkTheme = stored.isDarkTheme === true;
+      if (stored.theme) {
+        if (stored.theme === 'dark') {
+          this.isDarkTheme = true;
+        } else if (stored.theme === 'light') {
+          this.isDarkTheme = false;
+        } else if (stored.theme === 'auto') {
+          this.isDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+      } else {
+        this.isDarkTheme = stored.isDarkTheme === true;
+      }
     } catch (error) {
       console.warn('Failed to load settings, using defaults:', error);
     }
@@ -549,7 +559,10 @@ class NotebookLMExpander {
     }
     
     if (chrome?.storage?.sync) {
-      chrome.storage.sync.set({ isDarkTheme: this.isDarkTheme });
+      chrome.storage.sync.set({
+        isDarkTheme: this.isDarkTheme,
+        theme: this.isDarkTheme ? 'dark' : 'light'
+      });
     }
   }
 
